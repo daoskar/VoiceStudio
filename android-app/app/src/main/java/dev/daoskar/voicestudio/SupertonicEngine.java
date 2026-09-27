@@ -47,6 +47,7 @@ final class SupertonicEngine implements AutoCloseable {
     private final int baseChunkSize;
     private final int compressFactor;
     private final int latentDim;
+    private final boolean staticQnnMode;
 
     private SupertonicEngine(
             OrtEnvironment env,
@@ -61,7 +62,8 @@ final class SupertonicEngine implements AutoCloseable {
             int sampleRate,
             int baseChunkSize,
             int compressFactor,
-            int latentDim
+            int latentDim,
+            boolean staticQnnMode
     ) {
         this.env = env;
         this.durationSession = durationSession;
@@ -77,76 +79,126 @@ final class SupertonicEngine implements AutoCloseable {
         this.baseChunkSize = baseChunkSize;
         this.compressFactor = compressFactor;
         this.latentDim = latentDim;
+        this.staticQnnMode = staticQnnMode;
     }
 
-    static SupertonicEngine load(File root, String voice, Listener listener) throws Exception {
+    static SupertonicEngine load(
+            File root,
+            String voice,
+            boolean useQnnStatic,
+            Listener listener
+    ) throws Exception {
         listener.onStatus("Loading Supertonic-3 ONNX sessions...");
         File onnx = new File(root, "onnx");
         OrtEnvironment env = OrtEnvironment.getEnvironment();
 
-        listener.onStatus(QnnRuntime.registrationStatus(env));
+        OrtSession dp;
+        OrtSession te;
+        OrtSession ve;
+        OrtSession voc;
+        String backendSummary;
+        String backendDetails;
 
-        Map<String, Long> textDims = new HashMap<>();
-        textDims.put("batch_size", 1L);
-        textDims.put("text_length", (long) STATIC_TEXT_LENGTH);
+        if (useQnnStatic) {
+            listener.onStatus(QnnRuntime.registrationStatus(env));
 
-        Map<String, Long> vectorDims = new HashMap<>();
-        vectorDims.put("batch_size", 1L);
-        vectorDims.put("text_length", (long) STATIC_TEXT_LENGTH);
-        vectorDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
+            Map<String, Long> textDims = new HashMap<>();
+            textDims.put("batch_size", 1L);
+            textDims.put("text_length", (long) STATIC_TEXT_LENGTH);
 
-        Map<String, Long> vocoderDims = new HashMap<>();
-        vocoderDims.put("batch_size", 1L);
-        vocoderDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
+            Map<String, Long> vectorDims = new HashMap<>();
+            vectorDims.put("batch_size", 1L);
+            vectorDims.put("text_length", (long) STATIC_TEXT_LENGTH);
+            vectorDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
 
-        QnnRuntime.SessionResult dpResult = QnnRuntime.createSession(
-                env,
-                new File(onnx, "duration_predictor.onnx").getAbsolutePath(),
-                "duration_predictor",
-                textDims,
-                listener
-        );
-        QnnRuntime.SessionResult teResult = QnnRuntime.createSession(
-                env,
-                new File(onnx, "text_encoder.onnx").getAbsolutePath(),
-                "text_encoder",
-                textDims,
-                listener
-        );
-        QnnRuntime.SessionResult veResult = QnnRuntime.createSession(
-                env,
-                new File(onnx, "vector_estimator.onnx").getAbsolutePath(),
-                "vector_estimator",
-                vectorDims,
-                listener
-        );
-        QnnRuntime.SessionResult vocResult = QnnRuntime.createSession(
-                env,
-                new File(onnx, "vocoder.onnx").getAbsolutePath(),
-                "vocoder",
-                vocoderDims,
-                listener
-        );
+            Map<String, Long> vocoderDims = new HashMap<>();
+            vocoderDims.put("batch_size", 1L);
+            vocoderDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
 
-        OrtSession dp = dpResult.session;
-        OrtSession te = teResult.session;
-        OrtSession ve = veResult.session;
-        OrtSession voc = vocResult.session;
-        String backendSummary =
-                "DP=" + dpResult.backend +
-                ", TE=" + teResult.backend +
-                ", VE=" + veResult.backend +
-                ", VOC=" + vocResult.backend;
+            QnnRuntime.SessionResult dpResult = QnnRuntime.createSession(
+                    env,
+                    new File(onnx, "duration_predictor.onnx").getAbsolutePath(),
+                    "duration_predictor",
+                    textDims,
+                    listener
+            );
+            QnnRuntime.SessionResult teResult = QnnRuntime.createSession(
+                    env,
+                    new File(onnx, "text_encoder.onnx").getAbsolutePath(),
+                    "text_encoder",
+                    textDims,
+                    listener
+            );
+            QnnRuntime.SessionResult veResult = QnnRuntime.createSession(
+                    env,
+                    new File(onnx, "vector_estimator.onnx").getAbsolutePath(),
+                    "vector_estimator",
+                    vectorDims,
+                    listener
+            );
+            QnnRuntime.SessionResult vocResult = QnnRuntime.createSession(
+                    env,
+                    new File(onnx, "vocoder.onnx").getAbsolutePath(),
+                    "vocoder",
+                    vocoderDims,
+                    listener
+            );
 
-        String backendDetails =
-                "DP: " + dpResult.detail +
-                "\nTE: " + teResult.detail +
-                "\nVE: " + veResult.detail +
-                "\nVOC: " + vocResult.detail +
-                "\n" + describeDims("DP", dp) +
-                "\n" + describeDims("TE", te) +
-                "\n" + describeDims("VE", ve) +
-                "\n" + describeDims("VOC", voc);
+            dp = dpResult.session;
+            te = teResult.session;
+            ve = veResult.session;
+            voc = vocResult.session;
+
+            backendSummary =
+                    "DP=" + dpResult.backend +
+                    ", TE=" + teResult.backend +
+                    ", VE=" + veResult.backend +
+                    ", VOC=" + vocResult.backend;
+
+            backendDetails =
+                    "Model set: QDQ/INT8" +
+                    "\nDP: " + dpResult.detail +
+                    "\nTE: " + teResult.detail +
+                    "\nVE: " + veResult.detail +
+                    "\nVOC: " + vocResult.detail +
+                    "\n" + describeDims("DP", dp) +
+                    "\n" + describeDims("TE", te) +
+                    "\n" + describeDims("VE", ve) +
+                    "\n" + describeDims("VOC", voc) +
+                    "\nStatic HTP buckets: text=" + STATIC_TEXT_LENGTH +
+                    ", latent=" + STATIC_LATENT_LENGTH;
+        } else {
+            listener.onStatus("Using dynamic FP32 CPU fallback");
+            try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
+                options.setIntraOpNumThreads(
+                        Math.max(2, Runtime.getRuntime().availableProcessors() / 2)
+                );
+                dp = env.createSession(
+                        new File(onnx, "duration_predictor.onnx").getAbsolutePath(),
+                        options
+                );
+                te = env.createSession(
+                        new File(onnx, "text_encoder.onnx").getAbsolutePath(),
+                        options
+                );
+                ve = env.createSession(
+                        new File(onnx, "vector_estimator.onnx").getAbsolutePath(),
+                        options
+                );
+                voc = env.createSession(
+                        new File(onnx, "vocoder.onnx").getAbsolutePath(),
+                        options
+                );
+            }
+
+            backendSummary = "DP=CPU, TE=CPU, VE=CPU, VOC=CPU";
+            backendDetails =
+                    "Model set: FP32 dynamic CPU" +
+                    "\n" + describeDims("DP", dp) +
+                    "\n" + describeDims("TE", te) +
+                    "\n" + describeDims("VE", ve) +
+                    "\n" + describeDims("VOC", voc);
+        }
 
         JSONObject cfg = new JSONObject(readText(new File(onnx, "tts.json")));
         JSONObject ae = cfg.getJSONObject("ae");
@@ -156,34 +208,61 @@ final class SupertonicEngine implements AutoCloseable {
         int comp = ttl.getInt("chunk_compress_factor");
         int ldim = ttl.getInt("latent_dim");
 
-        long[] indexer = jsonLongArray(new JSONArray(readText(new File(onnx, "unicode_indexer.json"))));
+        long[] indexer = jsonLongArray(
+                new JSONArray(readText(new File(onnx, "unicode_indexer.json")))
+        );
 
-        JSONObject voiceJson = new JSONObject(readText(new File(root, "voice_styles/" + voice + ".json")));
+        JSONObject voiceJson = new JSONObject(
+                readText(new File(root, "voice_styles/" + voice + ".json"))
+        );
         OnnxTensor ttlStyle = styleTensor(env, voiceJson.getJSONObject("style_ttl"));
         OnnxTensor dpStyle = styleTensor(env, voiceJson.getJSONObject("style_dp"));
 
         listener.onStatus("Supertonic-3 loaded");
-        backendDetails = backendDetails +
-                "\nStatic HTP buckets: text=" + STATIC_TEXT_LENGTH +
-                ", latent=" + STATIC_LATENT_LENGTH;
         listener.onStatus("Backends: " + backendSummary + "\n" + backendDetails);
-        return new SupertonicEngine(env, dp, te, ve, voc, backendSummary + "\n" + backendDetails, indexer, ttlStyle, dpStyle, sr, base, comp, ldim);
+
+        return new SupertonicEngine(
+                env,
+                dp,
+                te,
+                ve,
+                voc,
+                backendSummary + "\n" + backendDetails,
+                indexer,
+                ttlStyle,
+                dpStyle,
+                sr,
+                base,
+                comp,
+                ldim,
+                useQnnStatic
+        );
     }
 
     float[] synthesize(String rawText, String language, int steps, float speed, Listener listener) throws Exception {
         String text = preprocess(rawText, language);
         listener.onStatus("Tokenizing...");
         int[] cps = text.codePoints().toArray();
-        if (cps.length > STATIC_TEXT_LENGTH) {
-            throw new IllegalArgumentException(
-                    "Text is too long for HTP bucket: " + cps.length +
-                    " > " + STATIC_TEXT_LENGTH + " characters"
-            );
+        final int actualTextLength = cps.length;
+
+        long[][] ids;
+        float[][][] textMask;
+
+        if (staticQnnMode) {
+            if (cps.length > STATIC_TEXT_LENGTH) {
+                throw new IllegalArgumentException(
+                        "Text is too long for HTP bucket: " + cps.length +
+                        " > " + STATIC_TEXT_LENGTH + " characters"
+                );
+            }
+            ids = tokenizePadded(cps, STATIC_TEXT_LENGTH);
+            textMask = new float[1][1][STATIC_TEXT_LENGTH];
+            Arrays.fill(textMask[0][0], 0, actualTextLength, 1.0f);
+        } else {
+            ids = tokenizePadded(cps, actualTextLength);
+            textMask = new float[1][1][actualTextLength];
+            Arrays.fill(textMask[0][0], 1.0f);
         }
-        int actualTextLength = cps.length;
-        long[][] ids = tokenizePadded(cps, STATIC_TEXT_LENGTH);
-        float[][][] textMask = new float[1][1][STATIC_TEXT_LENGTH];
-        Arrays.fill(textMask[0][0], 0, actualTextLength, 1.0f);
 
         try (
                 OnnxTensor idsTensor = longTensor(ids);
@@ -215,16 +294,27 @@ final class SupertonicEngine implements AutoCloseable {
                 int chunk = baseChunkSize * compressFactor;
                 long wavLength = Math.max(1L, (long) (duration * sampleRate));
                 int actualLatentLength = (int) ((wavLength + chunk - 1) / chunk);
-                if (actualLatentLength > STATIC_LATENT_LENGTH) {
-                    throw new IllegalArgumentException(
-                            "Audio is too long for HTP bucket: latent " + actualLatentLength +
-                            " > " + STATIC_LATENT_LENGTH
-                    );
+                int runtimeLatentLength = actualLatentLength;
+
+                if (staticQnnMode) {
+                    if (actualLatentLength > STATIC_LATENT_LENGTH) {
+                        throw new IllegalArgumentException(
+                                "Audio is too long for HTP bucket: latent " +
+                                actualLatentLength + " > " + STATIC_LATENT_LENGTH
+                        );
+                    }
+                    runtimeLatentLength = STATIC_LATENT_LENGTH;
                 }
+
                 int channels = latentDim * compressFactor;
-                float[][][] latent = randomLatent(channels, STATIC_LATENT_LENGTH);
-                float[][][] latentMask = new float[1][1][STATIC_LATENT_LENGTH];
-                Arrays.fill(latentMask[0][0], 0, actualLatentLength, 1.0f);
+                float[][][] latent = randomLatent(channels, runtimeLatentLength);
+                float[][][] latentMask = new float[1][1][runtimeLatentLength];
+
+                if (staticQnnMode) {
+                    Arrays.fill(latentMask[0][0], 0, actualLatentLength, 1.0f);
+                } else {
+                    Arrays.fill(latentMask[0][0], 1.0f);
+                }
 
                 int totalSteps = Math.max(2, Math.min(12, steps));
                 try (OnnxTensor totalStepTensor = OnnxTensor.createTensor(env, new float[]{totalSteps})) {
@@ -306,7 +396,7 @@ final class SupertonicEngine implements AutoCloseable {
     }
 
     private void collectProfilesOnce() {
-        if (profileCollected) return;
+        if (profileCollected || !staticQnnMode) return;
         profileCollected = true;
 
         String dpProfile = QnnRuntime.readOrtProfile(durationSession);
