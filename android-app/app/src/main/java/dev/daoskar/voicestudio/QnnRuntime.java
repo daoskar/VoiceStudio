@@ -48,6 +48,7 @@ final class QnnRuntime {
             OrtEnvironment env,
             String modelPath,
             String modelName,
+            Map<String, Long> symbolicDims,
             SupertonicEngine.Listener listener
     ) throws Exception {
         ensureRegistered(env);
@@ -70,6 +71,9 @@ final class QnnRuntime {
                         providerOptions.put("framework_op_trace_dir", traceDir.getAbsolutePath());
 
                         options.addExecutionProvider(devices, providerOptions);
+                        for (Map.Entry<String, Long> dim : symbolicDims.entrySet()) {
+                            options.setSymbolicDimensionValue(dim.getKey(), dim.getValue());
+                        }
                         options.enableProfiling(
                                 new File(
                                         new File(modelPath).getParentFile(),
@@ -89,31 +93,35 @@ final class QnnRuntime {
                 } else {
                     String reason = "registered plugin exposed no QNN EP device; EPs=" + epNames(env);
                     listener.onStatus(modelName + ": " + reason + "; CPU fallback");
-                    return cpuSession(env, modelPath, reason);
+                    return cpuSession(env, modelPath, symbolicDims, reason);
                 }
             } catch (Throwable qnnError) {
                 String reason = shortMessage(qnnError);
                 listener.onStatus(modelName + ": QNN/HTP rejected (" +
                         reason + "); CPU fallback");
-                return cpuSession(env, modelPath, reason);
+                return cpuSession(env, modelPath, symbolicDims, reason);
             }
         } else {
             String reason = "plugin registration failed" +
                     (registrationError == null ? "" : ": " + registrationError);
             listener.onStatus(modelName + ": " + reason + "; CPU fallback");
-            return cpuSession(env, modelPath, reason);
+            return cpuSession(env, modelPath, symbolicDims, reason);
         }
     }
 
     private static SessionResult cpuSession(
             OrtEnvironment env,
             String modelPath,
+            Map<String, Long> symbolicDims,
             String reason
     ) throws Exception {
         try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
             options.setIntraOpNumThreads(
                     Math.max(2, Runtime.getRuntime().availableProcessors() / 2)
             );
+            for (Map.Entry<String, Long> dim : symbolicDims.entrySet()) {
+                options.setSymbolicDimensionValue(dim.getKey(), dim.getValue());
+            }
             return new SessionResult(env.createSession(modelPath, options), "CPU", reason);
         }
     }
