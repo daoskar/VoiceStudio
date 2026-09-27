@@ -114,7 +114,7 @@ final class SupertonicEngine implements AutoCloseable {
             vocoderDims.put("batch_size", 1L);
             vocoderDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
 
-            listener.onStatus("Language-safe hybrid: FP32 TTS core + QDQ/INT8 vocoder");
+            listener.onStatus("Quality-safe hybrid: FP32 TTS core + FP32 vocoder via QNN/HTP FP16");
             try (OrtSession.SessionOptions conditioningOptions = new OrtSession.SessionOptions()) {
                 conditioningOptions.setIntraOpNumThreads(
                         Math.max(2, Runtime.getRuntime().availableProcessors() / 2)
@@ -135,8 +135,8 @@ final class SupertonicEngine implements AutoCloseable {
 
             QnnRuntime.SessionResult vocResult = QnnRuntime.createSession(
                     env,
-                    new File(onnx, "vocoder.onnx").getAbsolutePath(),
-                    "vocoder",
+                    new File(conditioningOnnx, "vocoder.onnx").getAbsolutePath(),
+                    "vocoder_fp32",
                     vocoderDims,
                     listener
             );
@@ -147,11 +147,11 @@ final class SupertonicEngine implements AutoCloseable {
                     "DP=CPU-FP32, TE=CPU-FP32, VE=CPU-FP32, VOC=" + vocResult.backend;
 
             backendDetails =
-                    "Model set: language-safe vocoder-only hybrid" +
+                    "Model set: quality-safe FP32/QNN hybrid" +
                     "\nDP: FP32 CPU" +
                     "\nTE: FP32 CPU" +
                     "\nVE: FP32 CPU" +
-                    "\nVOC: " + vocResult.detail +
+                    "\nVOC: FP32 model via QNN/HTP FP16 path; " + vocResult.detail +
                     "\n" + describeDims("DP", dp) +
                     "\n" + describeDims("TE", te) +
                     "\n" + describeDims("VE", ve) +
