@@ -1,12 +1,43 @@
 #include <jni.h>
 #include <android/NeuralNetworks.h>
+#include <dlfcn.h>
 #include <sstream>
 #include <string>
+#include <vector>
+
+static std::string qnnProbe() {
+    const std::vector<const char*> libs = {
+        "libQnnHtp.so",
+        "libQnnSystem.so",
+        "libQnnCpu.so",
+        "libQnnGpu.so",
+        "libQnnHtpPrepare.so"
+    };
+
+    std::ostringstream out;
+    out << "QNN libraries:";
+    for (const char* lib : libs) {
+        dlerror();
+        void* handle = dlopen(lib, RTLD_NOW | RTLD_LOCAL);
+        if (handle) {
+            out << "\n" << lib << ": accessible";
+            dlclose(handle);
+        } else {
+            const char* err = dlerror();
+            out << "\n" << lib << ": blocked/missing";
+            if (err) {
+                std::string msg(err);
+                if (msg.size() > 120) msg.resize(120);
+                out << " (" << msg << ")";
+            }
+        }
+    }
+    return out.str();
+}
 
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_dev_daoskar_voicestudio_NnapiNativeProbe_listDevices(JNIEnv* env, jclass) {
-#if __ANDROID_API__ >= 29
     uint32_t count = 0;
     int result = ANeuralNetworks_getDeviceCount(&count);
     if (result != ANEURALNETWORKS_NO_ERROR) {
@@ -45,9 +76,8 @@ Java_dev_daoskar_voicestudio_NnapiNativeProbe_listDevices(JNIEnv* env, jclass) {
             << " driver=" << (version ? version : "?");
     }
 
+    out << "\n" << qnnProbe();
+
     std::string text = out.str();
     return env->NewStringUTF(text.c_str());
-#else
-    return env->NewStringUTF("NNAPI device enumeration requires Android 10+");
-#endif
 }
