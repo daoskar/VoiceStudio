@@ -74,9 +74,6 @@ final class QnnRuntime {
                         Map<String, String> providerOptions = new HashMap<>();
                         providerOptions.put("backend_type", "htp");
                         providerOptions.put("enable_htp_fp16_precision", "1");
-                        providerOptions.put("offload_graph_io_quantization", "0");
-                        providerOptions.put("enable_framework_op_trace", "1");
-                        providerOptions.put("framework_op_trace_dir", traceDir.getAbsolutePath());
 
                         options.addExecutionProvider(devices, providerOptions);
                         options.addConfigEntry("session.disable_cpu_ep_fallback", "1");
@@ -93,12 +90,9 @@ final class QnnRuntime {
                         listener.onStatus(modelName + ": compiling hybrid QNN/HTP + CPU...");
                         OrtSession session = env.createSession(modelPath, options);
 
-                        String trace = readTraceSummary(traceDir);
-                        boolean hasQnn = trace.startsWith("QNN nodes: ") &&
-                                !trace.startsWith("QNN nodes: 0/");
-                        String backend = hasQnn ? "QNN/HTP+CPU" : "CPU";
-                        listener.onStatus(modelName + ": " + trace);
-                        return new SessionResult(session, backend, trace);
+                        String detail = "strict minimal HTP session created";
+                        listener.onStatus(modelName + ": " + detail);
+                        return new SessionResult(session, "QNN/HTP", detail);
                     }
                 } else {
                     String reason = "registered plugin exposed no QNN EP device; EPs=" + epNames(env);
