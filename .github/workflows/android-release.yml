@@ -4,9 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [android]
-    paths:
-      - "android-app/**"
-      - ".github/workflows/android-release.yml"
 
 permissions:
   contents: write
@@ -48,7 +45,7 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
-      - name: Build release APK
+      - name: Build signed test APK
         working-directory: android-app
         run: gradle --no-daemon :app:assembleDebug
 
@@ -70,4 +67,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete android-latest --yes --cleanup-tag || true
-          gh release create android-latest VoiceStudio-Android-arm64-*.apk VoiceStudio-Android-arm64-*.apk.sha256 --title "VoiceStudio Android latest" --notes "Automated ARM64 Android build from branch android at ${GITHUB_SHA}." --prerelease
+          gh release create android-latest VoiceStudio-Android-arm64-*.apk VoiceStudio-Android-arm64-*.apk.sha256 --target "${GITHUB_SHA}" --title "VoiceStudio Android latest" --notes "Automated ARM64 Android build from branch android at ${GITHUB_SHA}." --prerelease
