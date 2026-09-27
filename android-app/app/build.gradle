@@ -39,6 +39,15 @@ android {
             shrinkResources false
         }
     }
+
+    // Qualcomm's prebuilt QNN libraries are extracted at install time instead of
+    // being mmap'ed directly from the APK. This is more compatible with Android
+    // 16 / 16 KB page-size devices and vendor prebuilt ELF alignment.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
