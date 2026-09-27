@@ -302,29 +302,36 @@ final class QnnRuntime {
             java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8)
             );
-            StringBuilder out = new StringBuilder();
+            java.util.ArrayList<String> matches = new java.util.ArrayList<>();
             String line;
-            int kept = 0;
             while ((line = reader.readLine()) != null) {
                 String lower = line.toLowerCase(java.util.Locale.US);
-                if (!(lower.contains("qnn") ||
-                        lower.contains("execution provider") ||
+                boolean useful =
                         lower.contains("getcapability") ||
-                        lower.contains("assigned") ||
-                        lower.contains("partition") ||
                         lower.contains("unsupported") ||
-                        lower.contains("voicestudio-qnn"))) {
-                    continue;
-                }
-                if (out.length() > 0) out.append(" | ");
+                        lower.contains("not supported") ||
+                        lower.contains("assigned to") ||
+                        lower.contains("partition") ||
+                        lower.contains("cpuexecutionprovider") ||
+                        lower.contains("verifyeachnodeisassignedtoanep") ||
+                        lower.contains("qnnexecutionprovider") ||
+                        lower.contains("qnn ep");
+                if (!useful) continue;
+
                 String trimmed = line.trim();
-                if (trimmed.length() > 220) trimmed = trimmed.substring(0, 220);
-                out.append(trimmed);
-                kept++;
-                if (kept >= 8) break;
+                if (trimmed.length() > 260) trimmed = trimmed.substring(0, 260);
+                matches.add(trimmed);
+                if (matches.size() > 40) matches.remove(0);
             }
             reader.close();
             p.destroy();
+
+            int from = Math.max(0, matches.size() - 16);
+            StringBuilder out = new StringBuilder();
+            for (int i = from; i < matches.size(); i++) {
+                if (out.length() > 0) out.append(" | ");
+                out.append(matches.get(i));
+            }
             return out.toString();
         } catch (Throwable ignored) {
             return "";
