@@ -6,9 +6,11 @@ import android.media.AudioTrack;
 
 import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OnnxValue;
+import ai.onnxruntime.NodeInfo;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
+import ai.onnxruntime.TensorInfo;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -121,7 +123,11 @@ final class SupertonicEngine implements AutoCloseable {
                 "DP: " + dpResult.detail +
                 "\nTE: " + teResult.detail +
                 "\nVE: " + veResult.detail +
-                "\nVOC: " + vocResult.detail;
+                "\nVOC: " + vocResult.detail +
+                "\n" + describeDims("DP", dp) +
+                "\n" + describeDims("TE", te) +
+                "\n" + describeDims("VE", ve) +
+                "\n" + describeDims("VOC", voc);
 
         JSONObject cfg = new JSONObject(readText(new File(onnx, "tts.json")));
         JSONObject ae = cfg.getJSONObject("ae");
@@ -277,6 +283,23 @@ final class SupertonicEngine implements AutoCloseable {
                 "\nTE profile: " + teProfile +
                 "\nVE profile: " + veProfile +
                 "\nVOC profile: " + vocProfile;
+    }
+
+    private static String describeDims(String label, OrtSession session) {
+        StringBuilder out = new StringBuilder(label).append(" dims:");
+        try {
+            for (Map.Entry<String, NodeInfo> entry : session.getInputInfo().entrySet()) {
+                if (!(entry.getValue().getInfo() instanceof TensorInfo)) continue;
+                TensorInfo info = (TensorInfo) entry.getValue().getInfo();
+                out.append(" ").append(entry.getKey()).append("=")
+                        .append(java.util.Arrays.toString(info.getShape()))
+                        .append("/")
+                        .append(java.util.Arrays.toString(info.getDimensionNames()));
+            }
+            return out.toString();
+        } catch (Throwable error) {
+            return label + " dims: <failed " + error.getClass().getSimpleName() + ">";
+        }
     }
 
     private String preprocess(String raw, String language) {
