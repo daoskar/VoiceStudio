@@ -67,6 +67,8 @@ final class QnnRuntime {
 
                         Map<String, String> providerOptions = new HashMap<>();
                         providerOptions.put("backend_type", "htp");
+                        providerOptions.put("enable_htp_fp16_precision", "1");
+                        providerOptions.put("offload_graph_io_quantization", "0");
                         providerOptions.put("enable_framework_op_trace", "1");
                         providerOptions.put("framework_op_trace_dir", traceDir.getAbsolutePath());
 
