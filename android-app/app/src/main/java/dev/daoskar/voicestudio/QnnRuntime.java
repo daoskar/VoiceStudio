@@ -14,10 +14,12 @@ final class QnnRuntime {
     static final class SessionResult {
         final OrtSession session;
         final String backend;
+        final String detail;
 
-        SessionResult(OrtSession session, String backend) {
+        SessionResult(OrtSession session, String backend, String detail) {
             this.session = session;
             this.backend = backend;
+            this.detail = detail;
         }
     }
 
@@ -57,24 +59,50 @@ final class QnnRuntime {
                         listener.onStatus(modelName + ": compiling for QNN/HTP...");
                         OrtSession session = env.createSession(modelPath, options);
                         listener.onStatus(modelName + ": QNN/HTP ready");
-                        return new SessionResult(session, "QNN/HTP");
+                        return new SessionResult(session, "QNN/HTP", "strict HTP session created");
                     }
                 } else {
-                    listener.onStatus(modelName + ": QNN plugin has no HTP device; CPU fallback");
+                    String reason = "registered plugin exposed no QNN EP device; EPs=" + epNames(env);
+                    listener.onStatus(modelName + ": " + reason + "; CPU fallback");
+                    return cpuSession(env, modelPath, reason);
                 }
             } catch (Throwable qnnError) {
+                String reason = shortMessage(qnnError);
                 listener.onStatus(modelName + ": QNN/HTP rejected (" +
-                        shortMessage(qnnError) + "); CPU fallback");
+                        reason + "); CPU fallback");
+                return cpuSession(env, modelPath, reason);
             }
         } else {
-            listener.onStatus(modelName + ": QNN plugin unavailable; CPU fallback");
+            String reason = "plugin registration failed" +
+                    (registrationError == null ? "" : ": " + registrationError);
+            listener.onStatus(modelName + ": " + reason + "; CPU fallback");
+            return cpuSession(env, modelPath, reason);
         }
+    }
 
+    private static SessionResult cpuSession(
+            OrtEnvironment env,
+            String modelPath,
+            String reason
+    ) throws Exception {
         try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
             options.setIntraOpNumThreads(
                     Math.max(2, Runtime.getRuntime().availableProcessors() / 2)
             );
-            return new SessionResult(env.createSession(modelPath, options), "CPU");
+            return new SessionResult(env.createSession(modelPath, options), "CPU", reason);
+        }
+    }
+
+    private static String epNames(OrtEnvironment env) {
+        try {
+            StringBuilder out = new StringBuilder();
+            for (OrtEpDevice device : env.getEpDevices()) {
+                if (out.length() > 0) out.append(",");
+                out.append(device.getEpName());
+            }
+            return out.length() == 0 ? "<none>" : out.toString();
+        } catch (Throwable error) {
+            return "<enumeration failed: " + shortMessage(error) + ">";
         }
     }
 
