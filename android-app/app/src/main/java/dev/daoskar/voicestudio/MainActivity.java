@@ -10,6 +10,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -94,6 +96,41 @@ public final class MainActivity extends AppCompatActivity {
         modelParams.topMargin = dp(12);
         root.addView(model, modelParams);
 
+        TextView langLabel = new TextView(this);
+        langLabel.setText("Language");
+        root.addView(langLabel, matchWrap());
+
+        String[] languageCodes = {
+                "pl","en","de","fr","es","it","pt","cs","sk","uk","ru",
+                "ja","ko","ar","bg","da","el","et","fi","hi","hr","hu",
+                "id","lt","lv","nl","ro","sl","sv","tr","vi","na"
+        };
+        Spinner languageSpinner = new Spinner(this);
+        languageSpinner.setAdapter(new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_dropdown_item, languageCodes));
+        root.addView(languageSpinner, matchWrap());
+
+        TextView voiceLabel = new TextView(this);
+        voiceLabel.setText("Voice");
+        root.addView(voiceLabel, matchWrap());
+
+        String[] voices = {"M1","M3","M4","M5","F3","F4","F5"};
+        Spinner voiceSpinner = new Spinner(this);
+        voiceSpinner.setAdapter(new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_dropdown_item, voices));
+        root.addView(voiceSpinner, matchWrap());
+
+        TextView stepsLabel = new TextView(this);
+        stepsLabel.setText("Quality steps");
+        root.addView(stepsLabel, matchWrap());
+
+        Integer[] stepOptions = {4,6,8,10,12};
+        Spinner stepsSpinner = new Spinner(this);
+        stepsSpinner.setAdapter(new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_dropdown_item, stepOptions));
+        stepsSpinner.setSelection(1);
+        root.addView(stepsSpinner, matchWrap());
+
         EditText ttsText = new EditText(this);
         ttsText.setHint("Text to speak (English test)");
         ttsText.setText("Hello from VoiceStudio on Android.");
@@ -108,24 +145,36 @@ public final class MainActivity extends AppCompatActivity {
                 return;
             }
             final String text = ttsText.getText().toString();
+            final String language = (String) languageSpinner.getSelectedItem();
+            final String voice = (String) voiceSpinner.getSelectedItem();
+            final int steps = (Integer) stepsSpinner.getSelectedItem();
             generate.setEnabled(false);
             model.setEnabled(false);
             new Thread(() -> {
                 long started = System.currentTimeMillis();
                 try (SupertonicEngine engine = SupertonicEngine.load(
                         SupertonicModelManager.root(this),
-                        "M1",
+                        voice,
                         message -> runOnUiThread(() -> status.setText(buildStatus() + "\n" + message))
                 )) {
                     float[] wav = engine.synthesize(
                             text,
-                            6,
+                            language,
+                            steps,
                             1.0f,
                             message -> runOnUiThread(() -> status.setText(buildStatus() + "\n" + message))
                     );
                     long elapsed = System.currentTimeMillis() - started;
+                    double audioSeconds = wav.length / (double) engine.getSampleRate();
+                    double generationSeconds = elapsed / 1000.0;
+                    double rtf = generationSeconds / Math.max(0.001, audioSeconds);
                     runOnUiThread(() -> {
-                        status.setText(buildStatus() + "\nGenerated " + wav.length + " samples in " + elapsed + " ms");
+                        status.setText(buildStatus()
+                                + "\nGenerated " + wav.length + " samples"
+                                + "\nAudio: " + String.format(java.util.Locale.US, "%.2f s", audioSeconds)
+                                + "\nGeneration: " + String.format(java.util.Locale.US, "%.3f s", generationSeconds)
+                                + "\nRTF: " + String.format(java.util.Locale.US, "%.3f", rtf)
+                                + "\nLanguage: " + language + "  Voice: " + voice + "  Steps: " + steps);
                         engine.play(wav);
                     });
                 } catch (Throwable error) {
