@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.Random;
 
 final class SupertonicEngine implements AutoCloseable {
+    private static final int STATIC_TEXT_LENGTH = 128;
+    private static final int STATIC_LATENT_LENGTH = 128;
     interface Listener {
         void onStatus(String message);
     }
@@ -84,28 +86,45 @@ final class SupertonicEngine implements AutoCloseable {
 
         listener.onStatus(QnnRuntime.registrationStatus(env));
 
+        Map<String, Long> textDims = new HashMap<>();
+        textDims.put("batch_size", 1L);
+        textDims.put("text_length", (long) STATIC_TEXT_LENGTH);
+
+        Map<String, Long> vectorDims = new HashMap<>();
+        vectorDims.put("batch_size", 1L);
+        vectorDims.put("text_length", (long) STATIC_TEXT_LENGTH);
+        vectorDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
+
+        Map<String, Long> vocoderDims = new HashMap<>();
+        vocoderDims.put("batch_size", 1L);
+        vocoderDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
+
         QnnRuntime.SessionResult dpResult = QnnRuntime.createSession(
                 env,
                 new File(onnx, "duration_predictor.onnx").getAbsolutePath(),
                 "duration_predictor",
+                textDims,
                 listener
         );
         QnnRuntime.SessionResult teResult = QnnRuntime.createSession(
                 env,
                 new File(onnx, "text_encoder.onnx").getAbsolutePath(),
                 "text_encoder",
+                textDims,
                 listener
         );
         QnnRuntime.SessionResult veResult = QnnRuntime.createSession(
                 env,
                 new File(onnx, "vector_estimator.onnx").getAbsolutePath(),
                 "vector_estimator",
+                vectorDims,
                 listener
         );
         QnnRuntime.SessionResult vocResult = QnnRuntime.createSession(
                 env,
                 new File(onnx, "vocoder.onnx").getAbsolutePath(),
                 "vocoder",
+                vocoderDims,
                 listener
         );
 
@@ -144,6 +163,9 @@ final class SupertonicEngine implements AutoCloseable {
         OnnxTensor dpStyle = styleTensor(env, voiceJson.getJSONObject("style_dp"));
 
         listener.onStatus("Supertonic-3 loaded");
+        backendDetails = backendDetails +
+                "\nStatic HTP buckets: text=" + STATIC_TEXT_LENGTH +
+                ", latent=" + STATIC_LATENT_LENGTH;
         listener.onStatus("Backends: " + backendSummary + "\n" + backendDetails);
         return new SupertonicEngine(env, dp, te, ve, voc, backendSummary + "\n" + backendDetails, indexer, ttlStyle, dpStyle, sr, base, comp, ldim);
     }
@@ -151,9 +173,17 @@ final class SupertonicEngine implements AutoCloseable {
     float[] synthesize(String rawText, String language, int steps, float speed, Listener listener) throws Exception {
         String text = preprocess(rawText, language);
         listener.onStatus("Tokenizing...");
-        long[][] ids = tokenize(text);
-        float[][][] textMask = new float[1][1][ids[0].length];
-        Arrays.fill(textMask[0][0], 1.0f);
+        int[] cps = text.codePoints().toArray();
+        if (cps.length > STATIC_TEXT_LENGTH) {
+            throw new IllegalArgumentException(
+                    "Text is too long for HTP bucket: " + cps.length +
+                    " > " + STATIC_TEXT_LENGTH + " characters"
+            );
+        }
+        int actualTextLength = cps.length;
+        long[][] ids = tokenizePadded(cps, STATIC_TEXT_LENGTH);
+        float[][][] textMask = new float[1][1][STATIC_TEXT_LENGTH];
+        Arrays.fill(textMask[0][0], 0, actualTextLength, 1.0f);
 
         try (
                 OnnxTensor idsTensor = longTensor(ids);
@@ -184,11 +214,17 @@ final class SupertonicEngine implements AutoCloseable {
 
                 int chunk = baseChunkSize * compressFactor;
                 long wavLength = Math.max(1L, (long) (duration * sampleRate));
-                int latentLength = (int) ((wavLength + chunk - 1) / chunk);
+                int actualLatentLength = (int) ((wavLength + chunk - 1) / chunk);
+                if (actualLatentLength > STATIC_LATENT_LENGTH) {
+                    throw new IllegalArgumentException(
+                            "Audio is too long for HTP bucket: latent " + actualLatentLength +
+                            " > " + STATIC_LATENT_LENGTH
+                    );
+                }
                 int channels = latentDim * compressFactor;
-                float[][][] latent = randomLatent(channels, latentLength);
-                float[][][] latentMask = new float[1][1][latentLength];
-                Arrays.fill(latentMask[0][0], 1.0f);
+                float[][][] latent = randomLatent(channels, STATIC_LATENT_LENGTH);
+                float[][][] latentMask = new float[1][1][STATIC_LATENT_LENGTH];
+                Arrays.fill(latentMask[0][0], 0, actualLatentLength, 1.0f);
 
                 int totalSteps = Math.max(2, Math.min(12, steps));
                 try (OnnxTensor totalStepTensor = OnnxTensor.createTensor(env, new float[]{totalSteps})) {
@@ -313,9 +349,8 @@ final class SupertonicEngine implements AutoCloseable {
         return "<" + lang + ">" + t + "</" + lang + ">";
     }
 
-    private long[][] tokenize(String text) {
-        int[] cps = text.codePoints().toArray();
-        long[][] ids = new long[1][cps.length];
+    private long[][] tokenizePadded(int[] cps, int paddedLength) {
+        long[][] ids = new long[1][paddedLength];
         for (int i = 0; i < cps.length; i++) {
             int cp = cps[i];
             if (cp < 0 || cp >= unicodeIndexer.length) {
