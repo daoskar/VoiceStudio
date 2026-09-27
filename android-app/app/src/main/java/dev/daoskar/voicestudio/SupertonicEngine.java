@@ -110,16 +110,11 @@ final class SupertonicEngine implements AutoCloseable {
             textDims.put("batch_size", 1L);
             textDims.put("text_length", (long) STATIC_TEXT_LENGTH);
 
-            Map<String, Long> vectorDims = new HashMap<>();
-            vectorDims.put("batch_size", 1L);
-            vectorDims.put("text_length", (long) STATIC_TEXT_LENGTH);
-            vectorDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
-
             Map<String, Long> vocoderDims = new HashMap<>();
             vocoderDims.put("batch_size", 1L);
             vocoderDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
 
-            listener.onStatus("Language-safe hybrid: FP32 conditioning + QDQ/INT8 synthesis");
+            listener.onStatus("Language-safe hybrid: FP32 TTS core + QDQ/INT8 vocoder");
             try (OrtSession.SessionOptions conditioningOptions = new OrtSession.SessionOptions()) {
                 conditioningOptions.setIntraOpNumThreads(
                         Math.max(2, Runtime.getRuntime().availableProcessors() / 2)
@@ -132,15 +127,12 @@ final class SupertonicEngine implements AutoCloseable {
                         new File(conditioningOnnx, "text_encoder.onnx").getAbsolutePath(),
                         conditioningOptions
                 );
+                ve = env.createSession(
+                        new File(conditioningOnnx, "vector_estimator.onnx").getAbsolutePath(),
+                        conditioningOptions
+                );
             }
 
-            QnnRuntime.SessionResult veResult = QnnRuntime.createSession(
-                    env,
-                    new File(onnx, "vector_estimator.onnx").getAbsolutePath(),
-                    "vector_estimator",
-                    vectorDims,
-                    listener
-            );
             QnnRuntime.SessionResult vocResult = QnnRuntime.createSession(
                     env,
                     new File(onnx, "vocoder.onnx").getAbsolutePath(),
@@ -149,18 +141,16 @@ final class SupertonicEngine implements AutoCloseable {
                     listener
             );
 
-            ve = veResult.session;
             voc = vocResult.session;
 
             backendSummary =
-                    "DP=CPU-FP32, TE=CPU-FP32, VE=" + veResult.backend +
-                    ", VOC=" + vocResult.backend;
+                    "DP=CPU-FP32, TE=CPU-FP32, VE=CPU-FP32, VOC=" + vocResult.backend;
 
             backendDetails =
-                    "Model set: language-safe hybrid" +
-                    "\nDP: FP32 CPU conditioning" +
-                    "\nTE: FP32 CPU conditioning" +
-                    "\nVE: " + veResult.detail +
+                    "Model set: language-safe vocoder-only hybrid" +
+                    "\nDP: FP32 CPU" +
+                    "\nTE: FP32 CPU" +
+                    "\nVE: FP32 CPU" +
                     "\nVOC: " + vocResult.detail +
                     "\n" + describeDims("DP", dp) +
                     "\n" + describeDims("TE", te) +
@@ -201,7 +191,14 @@ final class SupertonicEngine implements AutoCloseable {
                     "\n" + describeDims("VOC", voc);
         }
 
-        JSONObject cfg = new JSONObject(readText(new File(onnx, "tts.json")));
+        File semanticOnnx = useQnnStatic && fp32ConditioningRoot != null
+                ? new File(fp32ConditioningRoot, "onnx")
+                : onnx;
+        File semanticRoot = useQnnStatic && fp32ConditioningRoot != null
+                ? fp32ConditioningRoot
+                : root;
+
+        JSONObject cfg = new JSONObject(readText(new File(semanticOnnx, "tts.json")));
         JSONObject ae = cfg.getJSONObject("ae");
         JSONObject ttl = cfg.getJSONObject("ttl");
         int sr = ae.getInt("sample_rate");
@@ -210,11 +207,11 @@ final class SupertonicEngine implements AutoCloseable {
         int ldim = ttl.getInt("latent_dim");
 
         long[] indexer = jsonLongArray(
-                new JSONArray(readText(new File(onnx, "unicode_indexer.json")))
+                new JSONArray(readText(new File(semanticOnnx, "unicode_indexer.json")))
         );
 
         JSONObject voiceJson = new JSONObject(
-                readText(new File(root, "voice_styles/" + voice + ".json"))
+                readText(new File(semanticRoot, "voice_styles/" + voice + ".json"))
         );
         OnnxTensor ttlStyle = styleTensor(env, voiceJson.getJSONObject("style_ttl"));
         OnnxTensor dpStyle = styleTensor(env, voiceJson.getJSONObject("style_dp"));
@@ -249,21 +246,9 @@ final class SupertonicEngine implements AutoCloseable {
         long[][] ids;
         float[][][] textMask;
 
-        if (staticQnnMode) {
-            if (cps.length > STATIC_TEXT_LENGTH) {
-                throw new IllegalArgumentException(
-                        "Text is too long for HTP bucket: " + cps.length +
-                        " > " + STATIC_TEXT_LENGTH + " characters"
-                );
-            }
-            ids = tokenizePadded(cps, STATIC_TEXT_LENGTH);
-            textMask = new float[1][1][STATIC_TEXT_LENGTH];
-            Arrays.fill(textMask[0][0], 0, actualTextLength, 1.0f);
-        } else {
-            ids = tokenizePadded(cps, actualTextLength);
-            textMask = new float[1][1][actualTextLength];
-            Arrays.fill(textMask[0][0], 1.0f);
-        }
+        ids = tokenizePadded(cps, actualTextLength);
+        textMask = new float[1][1][actualTextLength];
+        Arrays.fill(textMask[0][0], 1.0f);
 
         try (
                 OnnxTensor idsTensor = longTensor(ids);
@@ -295,27 +280,17 @@ final class SupertonicEngine implements AutoCloseable {
                 int chunk = baseChunkSize * compressFactor;
                 long wavLength = Math.max(1L, (long) (duration * sampleRate));
                 int actualLatentLength = (int) ((wavLength + chunk - 1) / chunk);
-                int runtimeLatentLength = actualLatentLength;
-
-                if (staticQnnMode) {
-                    if (actualLatentLength > STATIC_LATENT_LENGTH) {
-                        throw new IllegalArgumentException(
-                                "Audio is too long for HTP bucket: latent " +
-                                actualLatentLength + " > " + STATIC_LATENT_LENGTH
-                        );
-                    }
-                    runtimeLatentLength = STATIC_LATENT_LENGTH;
+                if (staticQnnMode && actualLatentLength > STATIC_LATENT_LENGTH) {
+                    throw new IllegalArgumentException(
+                            "Audio is too long for HTP vocoder bucket: latent " +
+                            actualLatentLength + " > " + STATIC_LATENT_LENGTH
+                    );
                 }
 
                 int channels = latentDim * compressFactor;
-                float[][][] latent = randomLatent(channels, runtimeLatentLength);
-                float[][][] latentMask = new float[1][1][runtimeLatentLength];
-
-                if (staticQnnMode) {
-                    Arrays.fill(latentMask[0][0], 0, actualLatentLength, 1.0f);
-                } else {
-                    Arrays.fill(latentMask[0][0], 1.0f);
-                }
+                float[][][] latent = randomLatent(channels, actualLatentLength);
+                float[][][] latentMask = new float[1][1][actualLatentLength];
+                Arrays.fill(latentMask[0][0], 1.0f);
 
                 int totalSteps = Math.max(2, Math.min(12, steps));
                 try (OnnxTensor totalStepTensor = OnnxTensor.createTensor(env, new float[]{totalSteps})) {
@@ -343,7 +318,11 @@ final class SupertonicEngine implements AutoCloseable {
                 }
 
                 listener.onStatus("Vocoding...");
-                try (OnnxTensor finalLatent = floatTensor(latent)) {
+                float[][][] vocoderLatent = latent;
+                if (staticQnnMode) {
+                    vocoderLatent = padLatentRight(latent, STATIC_LATENT_LENGTH);
+                }
+                try (OnnxTensor finalLatent = floatTensor(vocoderLatent)) {
                     Map<String, OnnxTensor> vocInputs = new HashMap<>();
                     vocInputs.put("latent", finalLatent);
                     try (OrtSession.Result out = vocoderSession.run(vocInputs)) {
@@ -450,6 +429,23 @@ final class SupertonicEngine implements AutoCloseable {
             ids[0][i] = unicodeIndexer[cp];
         }
         return ids;
+    }
+
+    private static float[][][] padLatentRight(float[][][] input, int targetLength) {
+        int batch = input.length;
+        int channels = input[0].length;
+        int current = input[0][0].length;
+        if (current > targetLength) {
+            throw new IllegalArgumentException("Latent exceeds target bucket: " + current + " > " + targetLength);
+        }
+        if (current == targetLength) return input;
+        float[][][] out = new float[batch][channels][targetLength];
+        for (int b = 0; b < batch; b++) {
+            for (int ch = 0; ch < channels; ch++) {
+                System.arraycopy(input[b][ch], 0, out[b][ch], 0, current);
+            }
+        }
+        return out;
     }
 
     private float[][][] randomLatent(int channels, int length) {
