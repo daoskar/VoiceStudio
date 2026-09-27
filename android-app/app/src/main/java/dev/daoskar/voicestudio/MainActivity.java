@@ -22,6 +22,9 @@ import androidx.core.content.ContextCompat;
 public final class MainActivity extends AppCompatActivity {
     private static final int REQ_AUDIO = 41;
     private TextView status;
+    private final Object engineLock = new Object();
+    private SupertonicEngine cachedEngine;
+    private String cachedVoice;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -151,12 +154,15 @@ public final class MainActivity extends AppCompatActivity {
             generate.setEnabled(false);
             model.setEnabled(false);
             new Thread(() -> {
-                long started = System.currentTimeMillis();
-                try (SupertonicEngine engine = SupertonicEngine.load(
-                        SupertonicModelManager.root(this),
-                        voice,
-                        message -> runOnUiThread(() -> status.setText(buildStatus() + "\n" + message))
-                )) {
+                try {
+                    long loadStarted = System.currentTimeMillis();
+                    SupertonicEngine engine = getOrLoadEngine(
+                            voice,
+                            message -> runOnUiThread(() -> status.setText(buildStatus() + "\n" + message))
+                    );
+                    long loadElapsed = System.currentTimeMillis() - loadStarted;
+
+                    long inferenceStarted = System.currentTimeMillis();
                     float[] wav = engine.synthesize(
                             text,
                             language,
@@ -164,15 +170,17 @@ public final class MainActivity extends AppCompatActivity {
                             1.0f,
                             message -> runOnUiThread(() -> status.setText(buildStatus() + "\n" + message))
                     );
-                    long elapsed = System.currentTimeMillis() - started;
+                    long inferenceElapsed = System.currentTimeMillis() - inferenceStarted;
+
                     double audioSeconds = wav.length / (double) engine.getSampleRate();
-                    double generationSeconds = elapsed / 1000.0;
+                    double generationSeconds = inferenceElapsed / 1000.0;
                     double rtf = generationSeconds / Math.max(0.001, audioSeconds);
                     runOnUiThread(() -> {
                         status.setText(buildStatus()
                                 + "\nGenerated " + wav.length + " samples"
                                 + "\nAudio: " + String.format(java.util.Locale.US, "%.2f s", audioSeconds)
-                                + "\nGeneration: " + String.format(java.util.Locale.US, "%.3f s", generationSeconds)
+                                + "\nModel load/cache: " + loadElapsed + " ms"
+                                + "\nInference: " + String.format(java.util.Locale.US, "%.3f s", generationSeconds)
                                 + "\nRTF: " + String.format(java.util.Locale.US, "%.3f", rtf)
                                 + "\nLanguage: " + language + "  Voice: " + voice + "  Steps: " + steps);
                         engine.play(wav);
@@ -201,12 +209,55 @@ public final class MainActivity extends AppCompatActivity {
                 "• Qualcomm QNN/HTP backend is staged for a custom ORT build.\n" +
                 "• Supertonic-3 model manager is integrated.\n" +
                 "• Direct Supertonic-3 ONNX TTS pipeline is enabled.\n" +
+                "• ONNX sessions stay warm between generations.\n" +
                 "• Current test backend: CPU. Next: QNN/HTP.\n"
         );
         note.setTextSize(14f);
         root.addView(note, matchWrap());
 
         setContentView(scroll);
+    }
+
+    private SupertonicEngine getOrLoadEngine(
+            String voice,
+            SupertonicEngine.Listener listener
+    ) throws Exception {
+        synchronized (engineLock) {
+            if (cachedEngine != null && voice.equals(cachedVoice)) {
+                listener.onStatus("Supertonic-3 warm cache: " + voice);
+                return cachedEngine;
+            }
+            if (cachedEngine != null) {
+                try {
+                    cachedEngine.close();
+                } finally {
+                    cachedEngine = null;
+                    cachedVoice = null;
+                }
+            }
+            cachedEngine = SupertonicEngine.load(
+                    SupertonicModelManager.root(this),
+                    voice,
+                    listener
+            );
+            cachedVoice = voice;
+            return cachedEngine;
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        synchronized (engineLock) {
+            if (cachedEngine != null) {
+                try {
+                    cachedEngine.close();
+                } catch (Exception ignored) {
+                }
+                cachedEngine = null;
+                cachedVoice = null;
+            }
+        }
+        super.onDestroy();
     }
 
     private String buildStatus() {
