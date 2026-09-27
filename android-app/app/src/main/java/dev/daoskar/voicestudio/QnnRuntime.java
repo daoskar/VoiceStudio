@@ -73,6 +73,7 @@ final class QnnRuntime {
                         providerOptions.put("framework_op_trace_dir", traceDir.getAbsolutePath());
 
                         options.addExecutionProvider(devices, providerOptions);
+                        options.addConfigEntry("session.disable_cpu_ep_fallback", "1");
                         for (Map.Entry<String, Long> dim : symbolicDims.entrySet()) {
                             options.setSymbolicDimensionValue(dim.getKey(), dim.getValue());
                         }
@@ -100,9 +101,9 @@ final class QnnRuntime {
                 }
             } catch (Throwable qnnError) {
                 String reason = shortMessage(qnnError);
-                listener.onStatus(modelName + ": QNN/HTP rejected (" +
+                listener.onStatus(modelName + ": strict QNN/HTP rejected (" +
                         reason + "); CPU fallback");
-                return cpuSession(env, modelPath, symbolicDims, reason);
+                return cpuSession(env, modelPath, symbolicDims, "strict HTP reject: " + reason);
             }
         } else {
             String reason = "plugin registration failed" +
