@@ -1,0 +1,46 @@
+name: Sync upstream and Android branch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-android-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/debpalash/VoiceStudio.git || true
+          git fetch upstream main
+          git fetch origin main android
+
+      - name: Merge upstream into main
+        run: |
+          git checkout main
+          git merge --no-edit upstream/main
+          git push origin main
+
+      - name: Merge main into android
+        run: |
+          git checkout android
+          git merge --no-edit origin/main
+          git push origin android
