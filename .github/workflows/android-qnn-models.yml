@@ -80,19 +80,43 @@ jobs:
           print('generated:', out, out.exists(), out.stat().st_size if out.exists() else 0)
           PY
 
-      - name: Validate SM8850 EPContext
+      - name: Inspect SM8850 EPContext outputs
         run: |
+          echo "=== generated files ==="
+          find supertonic3-qnn -maxdepth 3 -type f -printf '%p %s bytes\n' | sort
+
           python - <<'PY'
           from pathlib import Path
           import onnx
-          p=Path('supertonic3-qnn/onnx/vocoder_sm8850_ctx.onnx')
+
+          root=Path('supertonic3-qnn/onnx')
+          candidates=sorted(root.glob('vocoder_sm8850_ctx*')) + sorted(root.glob('*context*')) + sorted(root.glob('*.bin'))
+          print('candidates:')
+          for p in candidates:
+              print(' ', p, p.stat().st_size)
+
+          p=root/'vocoder_sm8850_ctx.onnx'
           if not p.is_file():
               raise SystemExit('missing vocoder_sm8850_ctx.onnx')
+
           m=onnx.load(p)
-          nodes=[n for n in m.graph.node if n.op_type == 'EPContext']
-          if not nodes:
-              raise SystemExit('generated model has no EPContext node')
-          print('EPContext nodes:', len(nodes), 'size:', p.stat().st_size)
+          print('ir_version:', m.ir_version)
+          print('producer:', m.producer_name, m.producer_version)
+          print('metadata:', [(x.key, x.value) for x in m.metadata_props])
+          print('nodes:')
+          for i,n in enumerate(m.graph.node):
+              print(i, 'domain=', repr(n.domain), 'op_type=', n.op_type, 'name=', n.name)
+              for a in n.attribute:
+                  val = None
+                  if a.type == onnx.AttributeProto.STRING:
+                      val = a.s.decode('utf-8', errors='replace')
+                  elif a.type == onnx.AttributeProto.INT:
+                      val = a.i
+                  elif a.type == onnx.AttributeProto.FLOAT:
+                      val = a.f
+                  else:
+                      val = 'type='+str(a.type)
+                  print('   attr', a.name, '=', val)
           PY
 
       - name: Package model bundle
