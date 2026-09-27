@@ -34,6 +34,7 @@ final class SupertonicEngine implements AutoCloseable {
     private final OrtSession textEncoderSession;
     private final OrtSession vectorSession;
     private final OrtSession vocoderSession;
+    private final String backendSummary;
     private final long[] unicodeIndexer;
     private final OnnxTensor styleTtl;
     private final OnnxTensor styleDp;
@@ -48,6 +49,7 @@ final class SupertonicEngine implements AutoCloseable {
             OrtSession textEncoderSession,
             OrtSession vectorSession,
             OrtSession vocoderSession,
+            String backendSummary,
             long[] unicodeIndexer,
             OnnxTensor styleTtl,
             OnnxTensor styleDp,
@@ -61,6 +63,7 @@ final class SupertonicEngine implements AutoCloseable {
         this.textEncoderSession = textEncoderSession;
         this.vectorSession = vectorSession;
         this.vocoderSession = vocoderSession;
+        this.backendSummary = backendSummary;
         this.unicodeIndexer = unicodeIndexer;
         this.styleTtl = styleTtl;
         this.styleDp = styleDp;
@@ -74,13 +77,43 @@ final class SupertonicEngine implements AutoCloseable {
         listener.onStatus("Loading Supertonic-3 ONNX sessions...");
         File onnx = new File(root, "onnx");
         OrtEnvironment env = OrtEnvironment.getEnvironment();
-        OrtSession.SessionOptions options = new OrtSession.SessionOptions();
-        options.setIntraOpNumThreads(Math.max(2, Runtime.getRuntime().availableProcessors() / 2));
 
-        OrtSession dp = env.createSession(new File(onnx, "duration_predictor.onnx").getAbsolutePath(), options);
-        OrtSession te = env.createSession(new File(onnx, "text_encoder.onnx").getAbsolutePath(), options);
-        OrtSession ve = env.createSession(new File(onnx, "vector_estimator.onnx").getAbsolutePath(), options);
-        OrtSession voc = env.createSession(new File(onnx, "vocoder.onnx").getAbsolutePath(), options);
+        listener.onStatus(QnnRuntime.registrationStatus(env));
+
+        QnnRuntime.SessionResult dpResult = QnnRuntime.createSession(
+                env,
+                new File(onnx, "duration_predictor.onnx").getAbsolutePath(),
+                "duration_predictor",
+                listener
+        );
+        QnnRuntime.SessionResult teResult = QnnRuntime.createSession(
+                env,
+                new File(onnx, "text_encoder.onnx").getAbsolutePath(),
+                "text_encoder",
+                listener
+        );
+        QnnRuntime.SessionResult veResult = QnnRuntime.createSession(
+                env,
+                new File(onnx, "vector_estimator.onnx").getAbsolutePath(),
+                "vector_estimator",
+                listener
+        );
+        QnnRuntime.SessionResult vocResult = QnnRuntime.createSession(
+                env,
+                new File(onnx, "vocoder.onnx").getAbsolutePath(),
+                "vocoder",
+                listener
+        );
+
+        OrtSession dp = dpResult.session;
+        OrtSession te = teResult.session;
+        OrtSession ve = veResult.session;
+        OrtSession voc = vocResult.session;
+        String backendSummary =
+                "DP=" + dpResult.backend +
+                ", TE=" + teResult.backend +
+                ", VE=" + veResult.backend +
+                ", VOC=" + vocResult.backend;
 
         JSONObject cfg = new JSONObject(readText(new File(onnx, "tts.json")));
         JSONObject ae = cfg.getJSONObject("ae");
@@ -97,7 +130,8 @@ final class SupertonicEngine implements AutoCloseable {
         OnnxTensor dpStyle = styleTensor(env, voiceJson.getJSONObject("style_dp"));
 
         listener.onStatus("Supertonic-3 loaded");
-        return new SupertonicEngine(env, dp, te, ve, voc, indexer, ttlStyle, dpStyle, sr, base, comp, ldim);
+        listener.onStatus("Backends: " + backendSummary);
+        return new SupertonicEngine(env, dp, te, ve, voc, backendSummary, indexer, ttlStyle, dpStyle, sr, base, comp, ldim);
     }
 
     float[] synthesize(String rawText, String language, int steps, float speed, Listener listener) throws Exception {
@@ -213,6 +247,10 @@ final class SupertonicEngine implements AutoCloseable {
 
     int getSampleRate() {
         return sampleRate;
+    }
+
+    String getBackendSummary() {
+        return backendSummary;
     }
 
     private String preprocess(String raw, String language) {
