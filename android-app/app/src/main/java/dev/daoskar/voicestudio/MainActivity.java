@@ -298,8 +298,8 @@ public final class MainActivity extends AppCompatActivity {
                 "• Qualcomm QNN/HTP runtime is bundled.\n" +
                 "• FP32 CPU is the stable default and preserves audio quality.\n" +
                 "• QDQ/INT8 QNN is experimental and must be selected manually.\n" +
-                "• Experimental mode keeps DP/text encoder in FP32 to preserve language quality.\n" +
-                "• Vector estimator/vocoder remain QDQ/INT8 targets for QNN/HTP.\n" +
+                "• Experimental mode keeps DP/text encoder/vector estimator in FP32.\n" +
+                "• Only the vocoder remains QDQ/INT8 as the current QNN/HTP target.\n" +
                 "• QNN/INT8 will not replace the stable backend automatically.\n" +
                 "• ORT profiling reports real QNN vs CPU execution.\n"
         );
