@@ -2,6 +2,11 @@ name: Build Supertonic QNN models
 
 on:
   workflow_dispatch:
+  push:
+    branches: [android]
+    paths:
+      - "scripts/prepare_supertonic_qnn.py"
+      - ".github/workflows/android-qnn-models.yml"
 
 permissions:
   contents: write
