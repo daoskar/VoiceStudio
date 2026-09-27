@@ -34,7 +34,8 @@ final class SupertonicEngine implements AutoCloseable {
     private final OrtSession textEncoderSession;
     private final OrtSession vectorSession;
     private final OrtSession vocoderSession;
-    private final String backendSummary;
+    private String backendSummary;
+    private boolean profileCollected;
     private final long[] unicodeIndexer;
     private final OnnxTensor styleTtl;
     private final OnnxTensor styleDp;
@@ -64,6 +65,7 @@ final class SupertonicEngine implements AutoCloseable {
         this.vectorSession = vectorSession;
         this.vocoderSession = vocoderSession;
         this.backendSummary = backendSummary;
+        this.profileCollected = false;
         this.unicodeIndexer = unicodeIndexer;
         this.styleTtl = styleTtl;
         this.styleDp = styleDp;
@@ -214,7 +216,9 @@ final class SupertonicEngine implements AutoCloseable {
                     try (OrtSession.Result out = vocoderSession.run(vocInputs)) {
                         float[] wav = flattenAudio(out.get(0).getValue());
                         int expected = Math.min(wav.length, Math.max(1, (int) (duration * sampleRate)));
-                        return Arrays.copyOf(wav, expected);
+                        float[] result = Arrays.copyOf(wav, expected);
+                        collectProfilesOnce();
+                        return result;
                     }
                 }
             }
@@ -257,6 +261,22 @@ final class SupertonicEngine implements AutoCloseable {
 
     String getBackendSummary() {
         return backendSummary;
+    }
+
+    private void collectProfilesOnce() {
+        if (profileCollected) return;
+        profileCollected = true;
+
+        String dpProfile = QnnRuntime.readOrtProfile(durationSession);
+        String teProfile = QnnRuntime.readOrtProfile(textEncoderSession);
+        String veProfile = QnnRuntime.readOrtProfile(vectorSession);
+        String vocProfile = QnnRuntime.readOrtProfile(vocoderSession);
+
+        backendSummary = backendSummary +
+                "\nDP profile: " + dpProfile +
+                "\nTE profile: " + teProfile +
+                "\nVE profile: " + veProfile +
+                "\nVOC profile: " + vocProfile;
     }
 
     private String preprocess(String raw, String language) {
