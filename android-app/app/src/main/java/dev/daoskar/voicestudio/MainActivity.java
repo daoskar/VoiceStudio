@@ -163,7 +163,7 @@ public final class MainActivity extends AppCompatActivity {
 
         String[] backends = {
                 "FP32 CPU (stable)",
-                "QDQ/INT8 QNN (experimental)"
+                "QNN/HTP FP16 vocoder (experimental)"
         };
         Spinner backendSpinner = new Spinner(this);
         backendSpinner.setAdapter(new ArrayAdapter<>(
@@ -297,9 +297,9 @@ public final class MainActivity extends AppCompatActivity {
                 "• NNAPI is the first hardware-acceleration path.\n" +
                 "• Qualcomm QNN/HTP runtime is bundled.\n" +
                 "• FP32 CPU is the stable default and preserves audio quality.\n" +
-                "• QDQ/INT8 QNN is experimental and must be selected manually.\n" +
+                "• QNN/HTP FP16 vocoder mode is experimental and must be selected manually.\n" +
                 "• Experimental mode keeps DP/text encoder/vector estimator in FP32.\n" +
-                "• Only the vocoder remains QDQ/INT8 as the current QNN/HTP target.\n" +
+                "• The original FP32 vocoder is submitted to QNN/HTP with FP16 enabled to preserve quality.\n" +
                 "• QNN/INT8 will not replace the stable backend automatically.\n" +
                 "• ORT profiling reports real QNN vs CPU execution.\n"
         );
