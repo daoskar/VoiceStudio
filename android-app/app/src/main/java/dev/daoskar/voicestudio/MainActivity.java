@@ -25,6 +25,7 @@ public final class MainActivity extends AppCompatActivity {
     private final Object engineLock = new Object();
     private SupertonicEngine cachedEngine;
     private String cachedVoice;
+    private String cachedMode;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -99,6 +100,63 @@ public final class MainActivity extends AppCompatActivity {
         modelParams.topMargin = dp(12);
         root.addView(model, modelParams);
 
+        Button qnnModel = new Button(this);
+        qnnModel.setText(
+                SupertonicQnnModelManager.isInstalled(this)
+                        ? "QNN/INT8 MODEL READY"
+                        : "DOWNLOAD QNN/INT8 MODEL"
+        );
+        qnnModel.setOnClickListener(v -> {
+            if (SupertonicQnnModelManager.isInstalled(this)) {
+                status.setText(buildStatus() + "\nQNN/INT8 Supertonic-3: ready");
+                return;
+            }
+
+            qnnModel.setEnabled(false);
+            SupertonicQnnModelManager.downloadAsync(
+                    this,
+                    new SupertonicQnnModelManager.Listener() {
+                        @Override
+                        public void onProgress(String message) {
+                            runOnUiThread(() ->
+                                    status.setText(buildStatus() + "\n" + message)
+                            );
+                        }
+
+                        @Override
+                        public void onDone(java.io.File modelRoot) {
+                            runOnUiThread(() -> {
+                                clearCachedEngine();
+                                qnnModel.setEnabled(true);
+                                qnnModel.setText("QNN/INT8 MODEL READY");
+                                status.setText(
+                                        buildStatus() +
+                                        "\nQNN/INT8 models ready: " +
+                                        modelRoot.getAbsolutePath()
+                                );
+                            });
+                        }
+
+                        @Override
+                        public void onError(Throwable error) {
+                            runOnUiThread(() -> {
+                                qnnModel.setEnabled(true);
+                                qnnModel.setText("RETRY QNN/INT8 DOWNLOAD");
+                                status.setText(
+                                        buildStatus() +
+                                        "\nQNN model download failed: " +
+                                        error.getClass().getSimpleName() +
+                                        ": " + error.getMessage()
+                                );
+                            });
+                        }
+                    }
+            );
+        });
+        LinearLayout.LayoutParams qnnParams = matchWrap();
+        qnnParams.topMargin = dp(8);
+        root.addView(qnnModel, qnnParams);
+
         TextView langLabel = new TextView(this);
         langLabel.setText("Language");
         root.addView(langLabel, matchWrap());
@@ -143,8 +201,12 @@ public final class MainActivity extends AppCompatActivity {
         Button generate = new Button(this);
         generate.setText("GENERATE & PLAY");
         generate.setOnClickListener(v -> {
-            if (!SupertonicModelManager.isInstalled(this)) {
-                status.setText(buildStatus() + "\nSupertonic-3 model is not installed");
+            if (!SupertonicModelManager.isInstalled(this)
+                    && !SupertonicQnnModelManager.isInstalled(this)) {
+                status.setText(
+                        buildStatus() +
+                        "\nInstall either the FP32 or QNN/INT8 Supertonic-3 model first"
+                );
                 return;
             }
             final String text = ttsText.getText().toString();
@@ -153,6 +215,7 @@ public final class MainActivity extends AppCompatActivity {
             final int steps = (Integer) stepsSpinner.getSelectedItem();
             generate.setEnabled(false);
             model.setEnabled(false);
+            qnnModel.setEnabled(false);
             new Thread(() -> {
                 try {
                     long loadStarted = System.currentTimeMillis();
@@ -194,6 +257,7 @@ public final class MainActivity extends AppCompatActivity {
                     runOnUiThread(() -> {
                         generate.setEnabled(true);
                         model.setEnabled(true);
+                        qnnModel.setEnabled(true);
                     });
                 }
             }, "supertonic-generate").start();
@@ -207,12 +271,11 @@ public final class MainActivity extends AppCompatActivity {
                 "\nRuntime status\n" +
                 "• ONNX Runtime Android is bundled.\n" +
                 "• NNAPI is the first hardware-acceleration path.\n" +
-                "• Qualcomm QNN/HTP backend is staged for a custom ORT build.\n" +
-                "• Supertonic-3 model manager is integrated.\n" +
-                "• Direct Supertonic-3 ONNX TTS pipeline is enabled.\n" +
+                "• Qualcomm QNN/HTP runtime is bundled.\n" +
+                "• FP32 model = dynamic CPU fallback.\n" +
+                "• QDQ/INT8 model = static QNN/HTP path.\n" +
                 "• ONNX sessions stay warm between generations.\n" +
-                "• QNN/HTP strict mode is enabled per ONNX graph.\n" +
-                "• Unsupported graphs fall back explicitly to CPU.\n"
+                "• ORT profiling reports real QNN vs CPU execution.\n"
         );
         note.setTextSize(14f);
         root.addView(note, matchWrap());
@@ -225,40 +288,78 @@ public final class MainActivity extends AppCompatActivity {
             SupertonicEngine.Listener listener
     ) throws Exception {
         synchronized (engineLock) {
-            if (cachedEngine != null && voice.equals(cachedVoice)) {
-                listener.onStatus("Supertonic-3 warm cache: " + voice);
+            boolean useQnn = SupertonicQnnModelManager.isInstalled(this);
+            String mode = useQnn ? "QDQ-QNN" : "FP32-CPU";
+
+            if (cachedEngine != null
+                    && voice.equals(cachedVoice)
+                    && mode.equals(cachedMode)) {
+                listener.onStatus("Supertonic-3 warm cache: " + voice + " / " + mode);
                 return cachedEngine;
             }
-            if (cachedEngine != null) {
-                try {
-                    cachedEngine.close();
-                } finally {
-                    cachedEngine = null;
-                    cachedVoice = null;
+
+            clearCachedEngineLocked();
+
+            java.io.File root = useQnn
+                    ? SupertonicQnnModelManager.root(this)
+                    : SupertonicModelManager.root(this);
+
+            try {
+                cachedEngine = SupertonicEngine.load(
+                        root,
+                        voice,
+                        useQnn,
+                        listener
+                );
+                cachedVoice = voice;
+                cachedMode = mode;
+                return cachedEngine;
+            } catch (Throwable qnnError) {
+                if (useQnn && SupertonicModelManager.isInstalled(this)) {
+                    listener.onStatus(
+                            "QNN model load failed (" +
+                            qnnError.getClass().getSimpleName() +
+                            ": " + qnnError.getMessage() +
+                            "); switching to FP32 CPU fallback"
+                    );
+                    clearCachedEngineLocked();
+                    cachedEngine = SupertonicEngine.load(
+                            SupertonicModelManager.root(this),
+                            voice,
+                            false,
+                            listener
+                    );
+                    cachedVoice = voice;
+                    cachedMode = "FP32-CPU";
+                    return cachedEngine;
                 }
+                if (qnnError instanceof Exception) throw (Exception) qnnError;
+                throw new RuntimeException(qnnError);
             }
-            cachedEngine = SupertonicEngine.load(
-                    SupertonicModelManager.root(this),
-                    voice,
-                    listener
-            );
-            cachedVoice = voice;
-            return cachedEngine;
+        }
+    }
+
+    private void clearCachedEngine() {
+        synchronized (engineLock) {
+            clearCachedEngineLocked();
+        }
+    }
+
+    private void clearCachedEngineLocked() {
+        if (cachedEngine != null) {
+            try {
+                cachedEngine.close();
+            } catch (Exception ignored) {
+            }
+            cachedEngine = null;
+            cachedVoice = null;
+            cachedMode = null;
         }
     }
 
     @Override
     protected void onDestroy() {
-        synchronized (engineLock) {
-            if (cachedEngine != null) {
-                try {
-                    cachedEngine.close();
-                } catch (Exception ignored) {
-                }
-                cachedEngine = null;
-                cachedVoice = null;
-            }
-        }
+        clearCachedEngine();
         super.onDestroy();
     }
 
@@ -270,7 +371,9 @@ public final class MainActivity extends AppCompatActivity {
                 "\nABI: " + Build.SUPPORTED_ABIS[0] +
                 "\nNNAPI provider: " + InferenceRuntime.probeNnapi() +
                 "\n" + NnapiNativeProbe.probe() +
-                "\nAcceleration target: NNAPI → QNN/HTP → CPU fallback" +
+                "\nAcceleration target: QNN/HTP → CPU fallback" +
+                "\nFP32 model: " + (SupertonicModelManager.isInstalled(this) ? "ready" : "not installed") +
+                "\nQNN/INT8 model: " + (SupertonicQnnModelManager.isInstalled(this) ? "ready" : "not installed") +
                 "\nMicrophone: " + (hasMicPermission() ? "ready" : "permission required");
     }
 
