@@ -5,6 +5,12 @@ import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -52,14 +58,27 @@ final class QnnRuntime {
                 if (!devices.isEmpty()) {
                     try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
                         options.setIntraOpNumThreads(1);
+                        File traceDir = new File(
+                                new File(modelPath).getParentFile(),
+                                "qnn-trace-" + modelName
+                        );
+                        resetTraceDir(traceDir);
+
                         Map<String, String> providerOptions = new HashMap<>();
                         providerOptions.put("backend_type", "htp");
+                        providerOptions.put("enable_framework_op_trace", "1");
+                        providerOptions.put("framework_op_trace_dir", traceDir.getAbsolutePath());
+
                         options.addExecutionProvider(devices, providerOptions);
-                        options.addConfigEntry("session.disable_cpu_ep_fallback", "1");
-                        listener.onStatus(modelName + ": compiling for QNN/HTP...");
+
+                        listener.onStatus(modelName + ": compiling hybrid QNN/HTP + CPU...");
                         OrtSession session = env.createSession(modelPath, options);
-                        listener.onStatus(modelName + ": QNN/HTP ready");
-                        return new SessionResult(session, "QNN/HTP", "strict HTP session created");
+
+                        String trace = readTraceSummary(traceDir);
+                        boolean hasQnn = !trace.startsWith("QNN nodes: 0/");
+                        String backend = hasQnn ? "QNN/HTP+CPU" : "CPU";
+                        listener.onStatus(modelName + ": " + trace);
+                        return new SessionResult(session, backend, trace);
                     }
                 } else {
                     String reason = "registered plugin exposed no QNN EP device; EPs=" + epNames(env);
@@ -103,6 +122,80 @@ final class QnnRuntime {
             return out.length() == 0 ? "<none>" : out.toString();
         } catch (Throwable error) {
             return "<enumeration failed: " + shortMessage(error) + ">";
+        }
+    }
+
+    private static void resetTraceDir(File dir) {
+        if (dir.isDirectory()) {
+            File[] files = dir.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isFile()) file.delete();
+                }
+            }
+        } else {
+            dir.mkdirs();
+        }
+    }
+
+    private static String readTraceSummary(File dir) {
+        try {
+            File[] files = dir.listFiles((d, name) -> name.endsWith(".json") && name.contains("_op_trace"));
+            if (files == null || files.length == 0) {
+                File fallback = new File(dir, "qnn_op_trace.json");
+                if (fallback.isFile()) files = new File[]{fallback};
+            }
+            if (files == null || files.length == 0) {
+                return "QNN trace unavailable";
+            }
+
+            String json = readText(files[0]);
+            JSONObject root = new JSONObject(json);
+            JSONObject summary = root.optJSONObject("summary");
+            if (summary == null) return "QNN trace has no summary";
+
+            int supported = summary.optInt("supported_nodes", 0);
+            int unsupported = summary.optInt("unsupported_nodes", 0);
+            int total = summary.optInt("total_onnx_nodes", supported + unsupported);
+            int qnnOps = summary.optInt("total_qnn_ops", 0);
+
+            StringBuilder out = new StringBuilder();
+            out.append("QNN nodes: ").append(supported).append("/").append(total)
+                    .append(", unsupported: ").append(unsupported)
+                    .append(", QNN ops: ").append(qnnOps);
+
+            JSONArray rejected = root.optJSONArray("unsupported_nodes");
+            if (rejected != null && rejected.length() > 0) {
+                out.append("; first unsupported: ");
+                int limit = Math.min(2, rejected.length());
+                for (int i = 0; i < limit; i++) {
+                    if (i > 0) out.append(" | ");
+                    JSONObject node = rejected.optJSONObject(i);
+                    if (node == null) continue;
+                    out.append(node.optString("op_type", "?"));
+                    String reason = node.optString("reason", "");
+                    if (!reason.isEmpty()) {
+                        if (reason.length() > 90) reason = reason.substring(0, 90);
+                        out.append(" (").append(reason).append(")");
+                    }
+                }
+            }
+            return out.toString();
+        } catch (Throwable error) {
+            return "QNN trace parse failed: " + shortMessage(error);
+        }
+    }
+
+    private static String readText(File file) throws Exception {
+        try (FileInputStream in = new FileInputStream(file)) {
+            byte[] data = new byte[(int) file.length()];
+            int pos = 0;
+            while (pos < data.length) {
+                int n = in.read(data, pos, data.length - pos);
+                if (n < 0) break;
+                pos += n;
+            }
+            return new String(data, 0, pos, StandardCharsets.UTF_8);
         }
     }
 
