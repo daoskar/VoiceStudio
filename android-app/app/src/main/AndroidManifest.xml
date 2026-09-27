@@ -4,6 +4,7 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <application
         android:allowBackup="true"
+        android:extractNativeLibs="true"
         android:label="VoiceStudio"
         android:theme="@style/Theme.VoiceStudio"
         android:usesCleartextTraffic="true">
