@@ -70,6 +70,12 @@ final class QnnRuntime {
                         providerOptions.put("framework_op_trace_dir", traceDir.getAbsolutePath());
 
                         options.addExecutionProvider(devices, providerOptions);
+                        options.enableProfiling(
+                                new File(
+                                        new File(modelPath).getParentFile(),
+                                        "ort-profile-" + modelName + "-"
+                                ).getAbsolutePath()
+                        );
 
                         listener.onStatus(modelName + ": compiling hybrid QNN/HTP + CPU...");
                         OrtSession session = env.createSession(modelPath, options);
@@ -183,6 +189,48 @@ final class QnnRuntime {
             return out.toString();
         } catch (Throwable error) {
             return "QNN trace parse failed: " + shortMessage(error);
+        }
+    }
+
+    static String readOrtProfile(OrtSession session) {
+        try {
+            String path = session.endProfiling();
+            if (path == null || path.isBlank()) return "ORT profile path unavailable";
+            File file = new File(path);
+            if (!file.isFile()) return "ORT profile missing: " + path;
+
+            JSONArray events = new JSONArray(readText(file));
+            int qnnEvents = 0;
+            int cpuEvents = 0;
+            long qnnDur = 0L;
+            long cpuDur = 0L;
+
+            for (int i = 0; i < events.length(); i++) {
+                JSONObject event = events.optJSONObject(i);
+                if (event == null) continue;
+                JSONObject args = event.optJSONObject("args");
+                if (args == null) continue;
+                String provider = args.optString("provider", "");
+                long dur = event.optLong("dur", 0L);
+
+                if ("QNNExecutionProvider".equals(provider)) {
+                    qnnEvents++;
+                    qnnDur += dur;
+                } else if ("CPUExecutionProvider".equals(provider)) {
+                    cpuEvents++;
+                    cpuDur += dur;
+                }
+            }
+
+            long total = qnnDur + cpuDur;
+            double qnnPct = total > 0 ? (100.0 * qnnDur / total) : 0.0;
+            return "ORT profile: QNN events=" + qnnEvents +
+                    ", CPU events=" + cpuEvents +
+                    ", QNN dur=" + qnnDur + "us" +
+                    ", CPU dur=" + cpuDur + "us" +
+                    ", QNN share=" + String.format(java.util.Locale.US, "%.1f%%", qnnPct);
+        } catch (Throwable error) {
+            return "ORT profile failed: " + shortMessage(error);
         }
     }
 
