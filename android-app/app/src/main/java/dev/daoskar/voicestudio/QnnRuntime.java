@@ -87,7 +87,8 @@ final class QnnRuntime {
                         OrtSession session = env.createSession(modelPath, options);
 
                         String trace = readTraceSummary(traceDir);
-                        boolean hasQnn = !trace.startsWith("QNN nodes: 0/");
+                        boolean hasQnn = trace.startsWith("QNN nodes: ") &&
+                                !trace.startsWith("QNN nodes: 0/");
                         String backend = hasQnn ? "QNN/HTP+CPU" : "CPU";
                         listener.onStatus(modelName + ": " + trace);
                         return new SessionResult(session, backend, trace);
