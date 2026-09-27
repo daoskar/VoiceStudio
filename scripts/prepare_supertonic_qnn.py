@@ -15,10 +15,12 @@ import onnxruntime as ort
 from huggingface_hub import snapshot_download
 from onnxruntime.quantization import (
     CalibrationDataReader,
-    CalibrationMethod,
-    QuantFormat,
     QuantType,
-    quantize_static,
+    quantize,
+)
+from onnxruntime.quantization.execution_providers.qnn import (
+    get_qnn_qdq_config,
+    qnn_preprocess_model,
 )
 
 REVISION = "724fb5abbf5502583fb520898d45929e62f02c0b"
@@ -166,22 +168,31 @@ def collect_calibration(root: Path):
 
 
 def quantize_one(src: Path, dst: Path, reader: CalibrationDataReader) -> None:
-    quantize_static(
-        model_input=str(src),
-        model_output=str(dst),
-        calibration_data_reader=reader,
-        quant_format=QuantFormat.QDQ,
-        activation_type=QuantType.QUInt8,
-        weight_type=QuantType.QInt8,
-        calibrate_method=CalibrationMethod.MinMax,
-        per_channel=True,
-        reduce_range=False,
-        extra_options={
-            "ActivationSymmetric": False,
-            "WeightSymmetric": True,
-            "DedicatedQDQPair": True,
-        },
+    preprocessed = src.with_name(src.stem + ".qnn-preproc.onnx")
+
+    changed = qnn_preprocess_model(
+        str(src),
+        str(preprocessed),
     )
+    model_to_quantize = preprocessed if changed else src
+
+    reader.rewind()
+    qnn_config = get_qnn_qdq_config(
+        str(model_to_quantize),
+        reader,
+        activation_type=QuantType.QUInt16,
+        weight_type=QuantType.QUInt8,
+    )
+
+    reader.rewind()
+    quantize(
+        str(model_to_quantize),
+        str(dst),
+        qnn_config,
+    )
+
+    if preprocessed.exists():
+        preprocessed.unlink()
 
 
 def main():
@@ -242,9 +253,11 @@ def main():
     manifest = {
         "source_repo": REPO_ID,
         "source_revision": REVISION,
-        "format": "QDQ",
-        "activation_type": "QUInt8",
-        "weight_type": "QInt8",
+        "format": "QNN-QDQ",
+        "activation_type": "QUInt16",
+        "weight_type": "QUInt8",
+        "preprocess": "qnn_preprocess_model",
+        "config": "get_qnn_qdq_config",
         "text_length": TEXT_LEN,
         "latent_length": LATENT_LEN,
         "calibration_samples": len(SAMPLES) * len(VOICES),
