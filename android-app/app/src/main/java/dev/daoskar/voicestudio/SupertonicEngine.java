@@ -100,8 +100,8 @@ final class SupertonicEngine implements AutoCloseable {
         return new SupertonicEngine(env, dp, te, ve, voc, indexer, ttlStyle, dpStyle, sr, base, comp, ldim);
     }
 
-    float[] synthesize(String rawText, int steps, float speed, Listener listener) throws Exception {
-        String text = preprocess(rawText);
+    float[] synthesize(String rawText, String language, int steps, float speed, Listener listener) throws Exception {
+        String text = preprocess(rawText, language);
         listener.onStatus("Tokenizing...");
         long[][] ids = tokenize(text);
         float[][][] textMask = new float[1][1][ids[0].length];
@@ -211,13 +211,19 @@ final class SupertonicEngine implements AutoCloseable {
         track.play();
     }
 
-    private String preprocess(String raw) {
+    int getSampleRate() {
+        return sampleRate;
+    }
+
+    private String preprocess(String raw, String language) {
+        String lang = language == null ? "na" : language.trim().toLowerCase();
         String t = Normalizer.normalize(raw == null ? "" : raw.trim(), Normalizer.Form.NFKD);
         t = t.replace('’', '\'').replace('“', '"').replace('”', '"').replace('—', '-');
         t = t.replaceAll("\\s+", " ");
         if (t.isEmpty()) throw new IllegalArgumentException("Enter text first");
         if (!t.matches(".*[.!?;:]$")) t += ".";
-        return "<en>" + t + "</en>";
+        if ("na".equals(lang)) return t;
+        return "<" + lang + ">" + t + "</" + lang + ">";
     }
 
     private long[][] tokenize(String text) {
