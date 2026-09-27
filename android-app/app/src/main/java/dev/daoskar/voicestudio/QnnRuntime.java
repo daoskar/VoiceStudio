@@ -73,6 +73,8 @@ final class QnnRuntime {
 
                         Map<String, String> providerOptions = new HashMap<>();
                         providerOptions.put("backend_type", "htp");
+                        providerOptions.put("soc_model", "87");
+                        providerOptions.put("htp_arch", "81");
                         providerOptions.put("enable_htp_fp16_precision", "1");
 
                         options.addExecutionProvider(devices, providerOptions);
@@ -90,7 +92,7 @@ final class QnnRuntime {
                         listener.onStatus(modelName + ": compiling hybrid QNN/HTP + CPU...");
                         OrtSession session = env.createSession(modelPath, options);
 
-                        String detail = "strict minimal HTP session created";
+                        String detail = "strict SM8850/V81 HTP session created";
                         listener.onStatus(modelName + ": " + detail);
                         return new SessionResult(session, "QNN/HTP", detail);
                     }
