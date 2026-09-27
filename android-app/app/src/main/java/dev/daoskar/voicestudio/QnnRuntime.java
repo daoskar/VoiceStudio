@@ -4,6 +4,9 @@ import ai.onnxruntime.OrtEpDevice;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
+import ai.onnxruntime.OrtLoggingLevel;
+
+import android.os.Process;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -59,6 +62,9 @@ final class QnnRuntime {
                 if (!devices.isEmpty()) {
                     try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
                         options.setIntraOpNumThreads(1);
+                        options.setLoggerId("VoiceStudio-QNN-" + modelName);
+                        options.setSessionLogLevel(OrtLoggingLevel.ORT_LOGGING_LEVEL_VERBOSE);
+                        options.setSessionLogVerbosityLevel(4);
                         File traceDir = new File(
                                 new File(modelPath).getParentFile(),
                                 "qnn-trace-" + modelName
@@ -101,9 +107,11 @@ final class QnnRuntime {
                 }
             } catch (Throwable qnnError) {
                 String reason = shortMessage(qnnError);
-                listener.onStatus(modelName + ": strict QNN/HTP rejected (" +
-                        reason + "); CPU fallback");
-                return cpuSession(env, modelPath, symbolicDims, "strict HTP reject: " + reason);
+                String qnnLog = captureOwnOrtLog();
+                String detail = "strict HTP reject: " + reason +
+                        (qnnLog.isEmpty() ? "" : "\nQNN verbose: " + qnnLog);
+                listener.onStatus(modelName + ": " + detail + "; CPU fallback");
+                return cpuSession(env, modelPath, symbolicDims, detail);
             }
         } else {
             String reason = "plugin registration failed" +
@@ -279,6 +287,48 @@ final class QnnRuntime {
             }
         }
         return out;
+    }
+
+    private static String captureOwnOrtLog() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    "logcat",
+                    "--pid=" + Process.myPid(),
+                    "-d",
+                    "-v", "brief"
+            );
+            pb.redirectErrorStream(true);
+            java.lang.Process p = pb.start();
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8)
+            );
+            StringBuilder out = new StringBuilder();
+            String line;
+            int kept = 0;
+            while ((line = reader.readLine()) != null) {
+                String lower = line.toLowerCase(java.util.Locale.US);
+                if (!(lower.contains("qnn") ||
+                        lower.contains("execution provider") ||
+                        lower.contains("getcapability") ||
+                        lower.contains("assigned") ||
+                        lower.contains("partition") ||
+                        lower.contains("unsupported") ||
+                        lower.contains("voicestudio-qnn"))) {
+                    continue;
+                }
+                if (out.length() > 0) out.append(" | ");
+                String trimmed = line.trim();
+                if (trimmed.length() > 220) trimmed = trimmed.substring(0, 220);
+                out.append(trimmed);
+                kept++;
+                if (kept >= 8) break;
+            }
+            reader.close();
+            p.destroy();
+            return out.toString();
+        } catch (Throwable ignored) {
+            return "";
+        }
     }
 
     private static String shortMessage(Throwable error) {
