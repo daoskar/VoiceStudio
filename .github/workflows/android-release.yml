@@ -1,0 +1,63 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [android]
+    paths:
+      - "android-app/**"
+      - ".github/workflows/android-release.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Build release APK
+        working-directory: android-app
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Rename APK
+        run: |
+          cp android-app/app/build/outputs/apk/release/app-release-unsigned.apk VoiceStudio-Android-arm64-${GITHUB_SHA::7}.apk
+          sha256sum VoiceStudio-Android-arm64-${GITHUB_SHA::7}.apk > VoiceStudio-Android-arm64-${GITHUB_SHA::7}.apk.sha256
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceStudio-Android-arm64
+          path: |
+            VoiceStudio-Android-arm64-*.apk
+            VoiceStudio-Android-arm64-*.apk.sha256
+
+      - name: Publish rolling prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest VoiceStudio-Android-arm64-*.apk VoiceStudio-Android-arm64-*.apk.sha256 --title "VoiceStudio Android latest" --notes "Automated ARM64 Android build from branch android at ${GITHUB_SHA}." --prerelease
