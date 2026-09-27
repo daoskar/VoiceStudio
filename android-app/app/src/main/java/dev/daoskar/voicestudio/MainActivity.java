@@ -76,6 +76,7 @@ public final class MainActivity extends AppCompatActivity {
                 "\nSoC: " + soc +
                 "\nAndroid API: " + Build.VERSION.SDK_INT +
                 "\nABI: " + Build.SUPPORTED_ABIS[0] +
+                "\nNNAPI provider: " + InferenceRuntime.probeNnapi() +
                 "\nAcceleration target: NNAPI → QNN/HTP → CPU fallback" +
                 "\nMicrophone: " + (hasMicPermission() ? "ready" : "permission required");
     }
