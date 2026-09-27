@@ -56,13 +56,51 @@ public final class MainActivity extends AppCompatActivity {
         buttonParams.topMargin = dp(20);
         root.addView(mic, buttonParams);
 
+        Button model = new Button(this);
+        model.setText(SupertonicModelManager.isInstalled(this) ? "SUPERTONIC-3 MODEL READY" : "DOWNLOAD SUPERTONIC-3 MODEL");
+        model.setOnClickListener(v -> {
+            if (SupertonicModelManager.isInstalled(this)) {
+                status.setText(buildStatus() + "\nSupertonic-3: ready");
+                return;
+            }
+            model.setEnabled(false);
+            SupertonicModelManager.downloadAsync(this, new SupertonicModelManager.Listener() {
+                @Override
+                public void onProgress(String message) {
+                    runOnUiThread(() -> status.setText(buildStatus() + "\n" + message));
+                }
+
+                @Override
+                public void onDone(java.io.File modelRoot) {
+                    runOnUiThread(() -> {
+                        model.setEnabled(true);
+                        model.setText("SUPERTONIC-3 MODEL READY");
+                        status.setText(buildStatus() + "\nSupertonic-3 ready: " + modelRoot.getAbsolutePath());
+                    });
+                }
+
+                @Override
+                public void onError(Throwable error) {
+                    runOnUiThread(() -> {
+                        model.setEnabled(true);
+                        model.setText("RETRY SUPERTONIC-3 DOWNLOAD");
+                        status.setText(buildStatus() + "\nModel download failed: " + error);
+                    });
+                }
+            });
+        });
+        LinearLayout.LayoutParams modelParams = matchWrap();
+        modelParams.topMargin = dp(12);
+        root.addView(model, modelParams);
+
         TextView note = new TextView(this);
         note.setText(
                 "\nRuntime status\n" +
                 "• ONNX Runtime Android is bundled.\n" +
                 "• NNAPI is the first hardware-acceleration path.\n" +
                 "• Qualcomm QNN/HTP backend is staged for a custom ORT build.\n" +
-                "• VoiceStudio model integration is the next milestone.\n"
+                "• Supertonic-3 model manager is integrated.\n" +
+                "• Next: direct ONNX TTS pipeline, then QNN/HTP.\n"
         );
         note.setTextSize(14f);
         root.addView(note, matchWrap());
