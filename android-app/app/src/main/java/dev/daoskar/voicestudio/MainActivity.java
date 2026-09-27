@@ -157,6 +157,23 @@ public final class MainActivity extends AppCompatActivity {
         qnnParams.topMargin = dp(8);
         root.addView(qnnModel, qnnParams);
 
+        TextView backendLabel = new TextView(this);
+        backendLabel.setText("Backend");
+        root.addView(backendLabel, matchWrap());
+
+        String[] backends = {
+                "FP32 CPU (stable)",
+                "QDQ/INT8 QNN (experimental)"
+        };
+        Spinner backendSpinner = new Spinner(this);
+        backendSpinner.setAdapter(new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_dropdown_item,
+                backends
+        ));
+        backendSpinner.setSelection(0);
+        root.addView(backendSpinner, matchWrap());
+
         TextView langLabel = new TextView(this);
         langLabel.setText("Language");
         root.addView(langLabel, matchWrap());
@@ -201,15 +218,17 @@ public final class MainActivity extends AppCompatActivity {
         Button generate = new Button(this);
         generate.setText("GENERATE & PLAY");
         generate.setOnClickListener(v -> {
-            if (!SupertonicModelManager.isInstalled(this)
-                    && !SupertonicQnnModelManager.isInstalled(this)) {
-                status.setText(
-                        buildStatus() +
-                        "\nInstall either the FP32 or QNN/INT8 Supertonic-3 model first"
-                );
+            boolean wantsQnn = backendSpinner.getSelectedItemPosition() == 1;
+            if (wantsQnn && !SupertonicQnnModelManager.isInstalled(this)) {
+                status.setText(buildStatus() + "\nQNN/INT8 model is not installed");
+                return;
+            }
+            if (!wantsQnn && !SupertonicModelManager.isInstalled(this)) {
+                status.setText(buildStatus() + "\nFP32 model is not installed");
                 return;
             }
             final String text = ttsText.getText().toString();
+            final boolean useQnnExperimental = backendSpinner.getSelectedItemPosition() == 1;
             final String language = (String) languageSpinner.getSelectedItem();
             final String voice = (String) voiceSpinner.getSelectedItem();
             final int steps = (Integer) stepsSpinner.getSelectedItem();
@@ -221,6 +240,7 @@ public final class MainActivity extends AppCompatActivity {
                     long loadStarted = System.currentTimeMillis();
                     SupertonicEngine engine = getOrLoadEngine(
                             voice,
+                            useQnnExperimental,
                             message -> runOnUiThread(() -> status.setText(buildStatus() + "\n" + message))
                     );
                     long loadElapsed = System.currentTimeMillis() - loadStarted;
@@ -272,9 +292,9 @@ public final class MainActivity extends AppCompatActivity {
                 "• ONNX Runtime Android is bundled.\n" +
                 "• NNAPI is the first hardware-acceleration path.\n" +
                 "• Qualcomm QNN/HTP runtime is bundled.\n" +
-                "• FP32 model = dynamic CPU fallback.\n" +
-                "• QDQ/INT8 model = static QNN/HTP path.\n" +
-                "• ONNX sessions stay warm between generations.\n" +
+                "• FP32 CPU is the stable default and preserves audio quality.\n" +
+                "• QDQ/INT8 QNN is experimental and must be selected manually.\n" +
+                "• QNN/INT8 will not replace the stable backend automatically.\n" +
                 "• ORT profiling reports real QNN vs CPU execution.\n"
         );
         note.setTextSize(14f);
@@ -285,11 +305,11 @@ public final class MainActivity extends AppCompatActivity {
 
     private SupertonicEngine getOrLoadEngine(
             String voice,
+            boolean useQnn,
             SupertonicEngine.Listener listener
     ) throws Exception {
         synchronized (engineLock) {
-            boolean useQnn = SupertonicQnnModelManager.isInstalled(this);
-            String mode = useQnn ? "QDQ-QNN" : "FP32-CPU";
+            String mode = useQnn ? "QDQ-QNN-EXPERIMENTAL" : "FP32-CPU-STABLE";
 
             if (cachedEngine != null
                     && voice.equals(cachedVoice)
@@ -300,42 +320,31 @@ public final class MainActivity extends AppCompatActivity {
 
             clearCachedEngineLocked();
 
-            java.io.File root = useQnn
-                    ? SupertonicQnnModelManager.root(this)
-                    : SupertonicModelManager.root(this);
-
-            try {
+            if (useQnn) {
+                if (!SupertonicQnnModelManager.isInstalled(this)) {
+                    throw new IllegalStateException("QNN/INT8 model is not installed");
+                }
                 cachedEngine = SupertonicEngine.load(
-                        root,
+                        SupertonicQnnModelManager.root(this),
                         voice,
-                        useQnn,
+                        true,
                         listener
                 );
-                cachedVoice = voice;
-                cachedMode = mode;
-                return cachedEngine;
-            } catch (Throwable qnnError) {
-                if (useQnn && SupertonicModelManager.isInstalled(this)) {
-                    listener.onStatus(
-                            "QNN model load failed (" +
-                            qnnError.getClass().getSimpleName() +
-                            ": " + qnnError.getMessage() +
-                            "); switching to FP32 CPU fallback"
-                    );
-                    clearCachedEngineLocked();
-                    cachedEngine = SupertonicEngine.load(
-                            SupertonicModelManager.root(this),
-                            voice,
-                            false,
-                            listener
-                    );
-                    cachedVoice = voice;
-                    cachedMode = "FP32-CPU";
-                    return cachedEngine;
+            } else {
+                if (!SupertonicModelManager.isInstalled(this)) {
+                    throw new IllegalStateException("FP32 model is not installed");
                 }
-                if (qnnError instanceof Exception) throw (Exception) qnnError;
-                throw new RuntimeException(qnnError);
+                cachedEngine = SupertonicEngine.load(
+                        SupertonicModelManager.root(this),
+                        voice,
+                        false,
+                        listener
+                );
             }
+
+            cachedVoice = voice;
+            cachedMode = mode;
+            return cachedEngine;
         }
     }
 
