@@ -84,12 +84,16 @@ final class SupertonicEngine implements AutoCloseable {
 
     static SupertonicEngine load(
             File root,
+            File fp32ConditioningRoot,
             String voice,
             boolean useQnnStatic,
             Listener listener
     ) throws Exception {
         listener.onStatus("Loading Supertonic-3 ONNX sessions...");
         File onnx = new File(root, "onnx");
+        File conditioningOnnx = useQnnStatic && fp32ConditioningRoot != null
+                ? new File(fp32ConditioningRoot, "onnx")
+                : onnx;
         OrtEnvironment env = OrtEnvironment.getEnvironment();
 
         OrtSession dp;
@@ -115,20 +119,21 @@ final class SupertonicEngine implements AutoCloseable {
             vocoderDims.put("batch_size", 1L);
             vocoderDims.put("latent_length", (long) STATIC_LATENT_LENGTH);
 
-            QnnRuntime.SessionResult dpResult = QnnRuntime.createSession(
-                    env,
-                    new File(onnx, "duration_predictor.onnx").getAbsolutePath(),
-                    "duration_predictor",
-                    textDims,
-                    listener
-            );
-            QnnRuntime.SessionResult teResult = QnnRuntime.createSession(
-                    env,
-                    new File(onnx, "text_encoder.onnx").getAbsolutePath(),
-                    "text_encoder",
-                    textDims,
-                    listener
-            );
+            listener.onStatus("Language-safe hybrid: FP32 conditioning + QDQ/INT8 synthesis");
+            try (OrtSession.SessionOptions conditioningOptions = new OrtSession.SessionOptions()) {
+                conditioningOptions.setIntraOpNumThreads(
+                        Math.max(2, Runtime.getRuntime().availableProcessors() / 2)
+                );
+                dp = env.createSession(
+                        new File(conditioningOnnx, "duration_predictor.onnx").getAbsolutePath(),
+                        conditioningOptions
+                );
+                te = env.createSession(
+                        new File(conditioningOnnx, "text_encoder.onnx").getAbsolutePath(),
+                        conditioningOptions
+                );
+            }
+
             QnnRuntime.SessionResult veResult = QnnRuntime.createSession(
                     env,
                     new File(onnx, "vector_estimator.onnx").getAbsolutePath(),
@@ -144,21 +149,17 @@ final class SupertonicEngine implements AutoCloseable {
                     listener
             );
 
-            dp = dpResult.session;
-            te = teResult.session;
             ve = veResult.session;
             voc = vocResult.session;
 
             backendSummary =
-                    "DP=" + dpResult.backend +
-                    ", TE=" + teResult.backend +
-                    ", VE=" + veResult.backend +
+                    "DP=CPU-FP32, TE=CPU-FP32, VE=" + veResult.backend +
                     ", VOC=" + vocResult.backend;
 
             backendDetails =
-                    "Model set: QDQ/INT8" +
-                    "\nDP: " + dpResult.detail +
-                    "\nTE: " + teResult.detail +
+                    "Model set: language-safe hybrid" +
+                    "\nDP: FP32 CPU conditioning" +
+                    "\nTE: FP32 CPU conditioning" +
                     "\nVE: " + veResult.detail +
                     "\nVOC: " + vocResult.detail +
                     "\n" + describeDims("DP", dp) +
