@@ -9,9 +9,11 @@ add_library(
 
 find_library(log-lib log)
 find_library(neuralnetworks-lib neuralnetworks)
+find_library(dl-lib dl)
 
 target_link_libraries(
     voicestudio_nnapi_probe
     ${log-lib}
     ${neuralnetworks-lib}
+    ${dl-lib}
 )
