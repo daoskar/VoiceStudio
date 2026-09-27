@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -93,6 +94,56 @@ public final class MainActivity extends AppCompatActivity {
         modelParams.topMargin = dp(12);
         root.addView(model, modelParams);
 
+        EditText ttsText = new EditText(this);
+        ttsText.setHint("Text to speak (English test)");
+        ttsText.setText("Hello from VoiceStudio on Android.");
+        ttsText.setMinLines(2);
+        root.addView(ttsText, matchWrap());
+
+        Button generate = new Button(this);
+        generate.setText("GENERATE & PLAY");
+        generate.setOnClickListener(v -> {
+            if (!SupertonicModelManager.isInstalled(this)) {
+                status.setText(buildStatus() + "\nSupertonic-3 model is not installed");
+                return;
+            }
+            final String text = ttsText.getText().toString();
+            generate.setEnabled(false);
+            model.setEnabled(false);
+            new Thread(() -> {
+                long started = System.currentTimeMillis();
+                try (SupertonicEngine engine = SupertonicEngine.load(
+                        SupertonicModelManager.root(this),
+                        "M1",
+                        message -> runOnUiThread(() -> status.setText(buildStatus() + "\n" + message))
+                )) {
+                    float[] wav = engine.synthesize(
+                            text,
+                            6,
+                            1.0f,
+                            message -> runOnUiThread(() -> status.setText(buildStatus() + "\n" + message))
+                    );
+                    long elapsed = System.currentTimeMillis() - started;
+                    runOnUiThread(() -> {
+                        status.setText(buildStatus() + "\nGenerated " + wav.length + " samples in " + elapsed + " ms");
+                        engine.play(wav);
+                    });
+                } catch (Throwable error) {
+                    runOnUiThread(() -> status.setText(
+                            buildStatus() + "\nTTS failed: " + error.getClass().getSimpleName() + ": " + error.getMessage()
+                    ));
+                } finally {
+                    runOnUiThread(() -> {
+                        generate.setEnabled(true);
+                        model.setEnabled(true);
+                    });
+                }
+            }, "supertonic-generate").start();
+        });
+        LinearLayout.LayoutParams generateParams = matchWrap();
+        generateParams.topMargin = dp(12);
+        root.addView(generate, generateParams);
+
         TextView note = new TextView(this);
         note.setText(
                 "\nRuntime status\n" +
@@ -100,7 +151,8 @@ public final class MainActivity extends AppCompatActivity {
                 "• NNAPI is the first hardware-acceleration path.\n" +
                 "• Qualcomm QNN/HTP backend is staged for a custom ORT build.\n" +
                 "• Supertonic-3 model manager is integrated.\n" +
-                "• Next: direct ONNX TTS pipeline, then QNN/HTP.\n"
+                "• Direct Supertonic-3 ONNX TTS pipeline is enabled.\n" +
+                "• Current test backend: CPU. Next: QNN/HTP.\n"
         );
         note.setTextSize(14f);
         root.addView(note, matchWrap());
