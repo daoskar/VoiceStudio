@@ -20,9 +20,9 @@ final class SupertonicQnnModelManager {
     static final String BUNDLE_URL =
             "https://github.com/daoskar/VoiceStudio/releases/download/android-qnn-models-latest/" +
             "VoiceStudio-Supertonic3-QNN-QDQ.tar.gz";
-    static final String BUNDLE_SHA256 =
-            "34416582886a398ae2390a338b94d8a916fbba24ef2b664849e50541f0f430f4";
-    static final String VERSION = "qdq-170bf174";
+    static final String CHECKSUM_URL =
+            BUNDLE_URL + ".sha256";
+    static final String VERSION = "qnn-u16u8-4014d02";
 
     interface Listener {
         void onProgress(String message);
@@ -59,6 +59,7 @@ final class SupertonicQnnModelManager {
             File parent = new File(context.getFilesDir(), "models/supertonic3-qnn");
             File bundle = new File(parent, VERSION + ".tar.gz.part");
             File tempRoot = new File(parent, VERSION + ".tmp");
+            File checksumFile = new File(parent, VERSION + ".sha256.part");
             File finalRoot = root(context);
 
             try {
@@ -76,14 +77,19 @@ final class SupertonicQnnModelManager {
                     throw new IllegalStateException("Cannot create " + tempRoot);
                 }
 
-                listener.onProgress("Downloading QDQ/INT8 model bundle...");
+                listener.onProgress("Downloading QNN U16/U8 model bundle...");
                 download(BUNDLE_URL, bundle, listener);
 
+                listener.onProgress("Downloading checksum...");
+                download(CHECKSUM_URL, checksumFile, null);
+
                 listener.onProgress("Verifying SHA-256...");
+                String expected = readExpectedChecksum(checksumFile);
                 String actual = sha256(bundle);
-                if (!BUNDLE_SHA256.equalsIgnoreCase(actual)) {
+                if (!expected.equalsIgnoreCase(actual)) {
                     throw new IllegalStateException(
-                            "QNN model SHA-256 mismatch: " + actual
+                            "QNN model SHA-256 mismatch: expected=" +
+                            expected + " actual=" + actual
                     );
                 }
 
@@ -101,9 +107,11 @@ final class SupertonicQnnModelManager {
                 }
 
                 bundle.delete();
+                checksumFile.delete();
                 listener.onDone(finalRoot);
             } catch (Throwable error) {
                 bundle.delete();
+                checksumFile.delete();
                 deleteRecursive(tempRoot);
                 listener.onError(error);
             }
@@ -137,7 +145,7 @@ final class SupertonicQnnModelManager {
             while ((n = in.read(buffer)) >= 0) {
                 fos.write(buffer, 0, n);
                 read += n;
-                if (read >= nextReport) {
+                if (listener != null && read >= nextReport) {
                     if (total > 0) {
                         int pct = (int) Math.min(100L, read * 100L / total);
                         listener.onProgress("Downloading QNN models: " + pct + "%");
@@ -154,6 +162,22 @@ final class SupertonicQnnModelManager {
         } finally {
             conn.disconnect();
         }
+    }
+
+    private static String readExpectedChecksum(File file) throws Exception {
+        byte[] data;
+        try (InputStream in = new BufferedInputStream(new FileInputStream(file))) {
+            data = in.readAllBytes();
+        }
+        String text = new String(data, java.nio.charset.StandardCharsets.UTF_8).trim();
+        if (text.isEmpty()) {
+            throw new IllegalStateException("Empty QNN checksum file");
+        }
+        String token = text.split("\\s+")[0].trim();
+        if (!token.matches("[0-9a-fA-F]{64}")) {
+            throw new IllegalStateException("Invalid QNN checksum file: " + text);
+        }
+        return token.toLowerCase(Locale.US);
     }
 
     private static String sha256(File file) throws Exception {
