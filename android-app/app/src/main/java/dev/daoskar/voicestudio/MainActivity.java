@@ -223,6 +223,10 @@ public final class MainActivity extends AppCompatActivity {
                 status.setText(buildStatus() + "\nQNN/INT8 model is not installed");
                 return;
             }
+            if (wantsQnn && !SupertonicModelManager.isInstalled(this)) {
+                status.setText(buildStatus() + "\nFP32 model is required for language-safe QNN hybrid");
+                return;
+            }
             if (!wantsQnn && !SupertonicModelManager.isInstalled(this)) {
                 status.setText(buildStatus() + "\nFP32 model is not installed");
                 return;
@@ -294,6 +298,8 @@ public final class MainActivity extends AppCompatActivity {
                 "• Qualcomm QNN/HTP runtime is bundled.\n" +
                 "• FP32 CPU is the stable default and preserves audio quality.\n" +
                 "• QDQ/INT8 QNN is experimental and must be selected manually.\n" +
+                "• Experimental mode keeps DP/text encoder in FP32 to preserve language quality.\n" +
+                "• Vector estimator/vocoder remain QDQ/INT8 targets for QNN/HTP.\n" +
                 "• QNN/INT8 will not replace the stable backend automatically.\n" +
                 "• ORT profiling reports real QNN vs CPU execution.\n"
         );
@@ -326,6 +332,7 @@ public final class MainActivity extends AppCompatActivity {
                 }
                 cachedEngine = SupertonicEngine.load(
                         SupertonicQnnModelManager.root(this),
+                        SupertonicModelManager.root(this),
                         voice,
                         true,
                         listener
@@ -335,6 +342,7 @@ public final class MainActivity extends AppCompatActivity {
                     throw new IllegalStateException("FP32 model is not installed");
                 }
                 cachedEngine = SupertonicEngine.load(
+                        SupertonicModelManager.root(this),
                         SupertonicModelManager.root(this),
                         voice,
                         false,
