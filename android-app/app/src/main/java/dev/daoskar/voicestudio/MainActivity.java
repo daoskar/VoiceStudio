@@ -182,6 +182,7 @@ public final class MainActivity extends AppCompatActivity {
                                 + "\nModel load/cache: " + loadElapsed + " ms"
                                 + "\nInference: " + String.format(java.util.Locale.US, "%.3f s", generationSeconds)
                                 + "\nRTF: " + String.format(java.util.Locale.US, "%.3f", rtf)
+                                + "\nBackends: " + engine.getBackendSummary()
                                 + "\nLanguage: " + language + "  Voice: " + voice + "  Steps: " + steps);
                         engine.play(wav);
                     });
@@ -210,7 +211,8 @@ public final class MainActivity extends AppCompatActivity {
                 "• Supertonic-3 model manager is integrated.\n" +
                 "• Direct Supertonic-3 ONNX TTS pipeline is enabled.\n" +
                 "• ONNX sessions stay warm between generations.\n" +
-                "• Current test backend: CPU. Next: QNN/HTP.\n"
+                "• QNN/HTP strict mode is enabled per ONNX graph.\n" +
+                "• Unsupported graphs fall back explicitly to CPU.\n"
         );
         note.setTextSize(14f);
         root.addView(note, matchWrap());
