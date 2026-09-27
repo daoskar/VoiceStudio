@@ -115,6 +115,12 @@ final class SupertonicEngine implements AutoCloseable {
                 ", VE=" + veResult.backend +
                 ", VOC=" + vocResult.backend;
 
+        String backendDetails =
+                "DP: " + dpResult.detail +
+                "\nTE: " + teResult.detail +
+                "\nVE: " + veResult.detail +
+                "\nVOC: " + vocResult.detail;
+
         JSONObject cfg = new JSONObject(readText(new File(onnx, "tts.json")));
         JSONObject ae = cfg.getJSONObject("ae");
         JSONObject ttl = cfg.getJSONObject("ttl");
@@ -130,8 +136,8 @@ final class SupertonicEngine implements AutoCloseable {
         OnnxTensor dpStyle = styleTensor(env, voiceJson.getJSONObject("style_dp"));
 
         listener.onStatus("Supertonic-3 loaded");
-        listener.onStatus("Backends: " + backendSummary);
-        return new SupertonicEngine(env, dp, te, ve, voc, backendSummary, indexer, ttlStyle, dpStyle, sr, base, comp, ldim);
+        listener.onStatus("Backends: " + backendSummary + "\n" + backendDetails);
+        return new SupertonicEngine(env, dp, te, ve, voc, backendSummary + "\n" + backendDetails, indexer, ttlStyle, dpStyle, sr, base, comp, ldim);
     }
 
     float[] synthesize(String rawText, String language, int steps, float speed, Listener listener) throws Exception {
