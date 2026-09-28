@@ -2679,7 +2679,8 @@
     "fast": "Cepat",
     "balanced": "Seimbang",
     "quality": "Kualitas",
-    "hint": "Berlaku untuk sampling OmniVoice dan decoding Faster-Whisper / NLLB. Mesin lain mempertahankan pengaturannya."
+    "hint": "Berlaku untuk sampling OmniVoice dan decoding Faster-Whisper / NLLB. Mesin lain mempertahankan pengaturannya.",
+    "auto": "Otomatis"
   },
   "recording": {
     "input_device": "Perangkat masukan",
@@ -3197,5 +3198,41 @@
     "addingVoice": "Menambahkan suara…",
     "engineDefault": "Default mesin",
     "preview": "Pratinjau suara"
+  },
+  "sidebarTools": {
+    "simple": "Sederhana",
+    "details": "Detail",
+    "title": "Pengaturan alat",
+    "help": "Pilih alat untuk menyiapkannya atau mengganti modelnya.",
+    "tts": "Teks ke suara",
+    "asr": "Suara ke teks",
+    "llm": "Bantuan menulis",
+    "translation": "Terjemahan",
+    "dictation": "Ketik dengan suara",
+    "diarisation": "Kenali pembicara",
+    "onDemand": "Dimuat saat dipakai",
+    "checkSetup": "Periksa pengaturan",
+    "wait": "Tunggu pekerjaan saat ini selesai sebelum mengubah ini.",
+    "speedHelp": "Kualitas lebih tinggi bisa memakan waktu lebih lama. Mulai dengan Seimbang."
+  },
+  "performanceHardware": {
+    "fits": "Sesuai perangkat keras Anda",
+    "adjusted": "Disesuaikan dengan perangkat Anda",
+    "unknown": "Pemeriksaan perangkat tidak tersedia",
+    "priority": "Kualitas suara diutamakan. Alat lain berbagi sisa memori.",
+    "specs": "{{ram}} GB RAM · {{cores}} utas CPU",
+    "vram": "{{memory}} GB VRAM",
+    "estimate": "Perkiraan dengan ruang untuk sistem. Menggunakan model terpasang yang mendukung bahasa; dimuat saat digunakan.",
+    "reason": {
+      "fits": "Sesuai",
+      "memory": "Batas memori",
+      "installed": "Hanya model terpasang",
+      "kept": "Pilihan Anda dipertahankan",
+      "unknown": "Pemeriksaan perangkat tidak tersedia"
+    },
+    "liveUsage": "Penggunaan saat ini",
+    "everyTwoSeconds": "Setiap 2 dtk",
+    "appVram": "VRAM aplikasi",
+    "voiceFirst": "Utamakan kualitas suara"
   }
 }

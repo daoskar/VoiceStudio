@@ -35,6 +35,7 @@ metadata and the backend fallback mirror it.
 
 ### Changed
 
+- Sidebar keeps its quality slider, adds hardware-aware Auto with live resource usage and TTS-first model selection, and groups compact engine status with icon-based Simple, Models and Details views (#2396)
 - OmniVoice sidecars reuse installed speech recognition for short references without transcripts, matching in-process cloning (#2320)
 - Electron recovers from OS-denied default backend ports without changing explicitly configured ports (#2358) — thanks @rishi2288!
 - Home opens directly on project actions, and Integrations lists only connectors with completed in-app setup (#2351)

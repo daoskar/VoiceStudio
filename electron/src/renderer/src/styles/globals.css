@@ -520,7 +520,7 @@
 .brand-sidebar .text-muted-foreground {
   color: var(--sidebar-muted-foreground);
 }
-.brand-sidebar:has(#sidebar-engine-details:not([hidden])) [data-slot='workspace-navigation'] {
+.brand-sidebar:has(#sidebar-engine-details:not([data-detail-level='simple'])) [data-slot='workspace-navigation'] {
   max-height: 32vh;
 }
 @media (max-height: 680px) {

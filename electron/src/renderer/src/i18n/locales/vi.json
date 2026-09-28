@@ -2679,7 +2679,8 @@
     "fast": "Nhanh",
     "balanced": "Cân bằng",
     "quality": "Chất lượng",
-    "hint": "Áp dụng cho lấy mẫu OmniVoice và giải mã Faster-Whisper / NLLB. Các công cụ khác giữ nguyên cài đặt hiện tại của chúng."
+    "hint": "Áp dụng cho lấy mẫu OmniVoice và giải mã Faster-Whisper / NLLB. Các công cụ khác giữ nguyên cài đặt hiện tại của chúng.",
+    "auto": "Tự động"
   },
   "recording": {
     "input_device": "Thiết bị đầu vào",
@@ -3197,5 +3198,41 @@
     "addingVoice": "Đang thêm giọng nói…",
     "engineDefault": "Mặc định công cụ",
     "preview": "Xem trước giọng nói"
+  },
+  "sidebarTools": {
+    "simple": "Đơn giản",
+    "details": "Chi tiết",
+    "title": "Cài đặt công cụ",
+    "help": "Chọn công cụ để thiết lập hoặc đổi mô hình.",
+    "tts": "Văn bản thành giọng nói",
+    "asr": "Giọng nói thành văn bản",
+    "llm": "Hỗ trợ viết",
+    "translation": "Dịch thuật",
+    "dictation": "Nhập bằng giọng nói",
+    "diarisation": "Nhận diện người nói",
+    "onDemand": "Tải khi sử dụng",
+    "checkSetup": "Kiểm tra thiết lập",
+    "wait": "Đợi công việc hiện tại hoàn tất trước khi thay đổi.",
+    "speedHelp": "Chất lượng cao hơn có thể mất nhiều thời gian hơn. Hãy bắt đầu với Cân bằng."
+  },
+  "performanceHardware": {
+    "fits": "Phù hợp với phần cứng",
+    "adjusted": "Đã điều chỉnh theo phần cứng",
+    "unknown": "Không thể kiểm tra phần cứng",
+    "priority": "Ưu tiên chất lượng giọng nói. Các công cụ khác chia sẻ bộ nhớ còn lại.",
+    "specs": "{{ram}} GB RAM · {{cores}} luồng CPU",
+    "vram": "{{memory}} GB VRAM",
+    "estimate": "Ước tính có chừa bộ nhớ cho hệ thống. Dùng mô hình đã cài hỗ trợ ngôn ngữ; tải khi sử dụng.",
+    "reason": {
+      "fits": "Phù hợp",
+      "memory": "Giới hạn bộ nhớ",
+      "installed": "Chỉ mô hình đã cài",
+      "kept": "Giữ lựa chọn của bạn",
+      "unknown": "Không thể kiểm tra phần cứng"
+    },
+    "liveUsage": "Mức sử dụng hiện tại",
+    "everyTwoSeconds": "Mỗi 2 giây",
+    "appVram": "VRAM ứng dụng",
+    "voiceFirst": "Ưu tiên chất lượng giọng nói"
   }
 }

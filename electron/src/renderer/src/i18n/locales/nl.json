@@ -2679,7 +2679,8 @@
     "fast": "Snel",
     "balanced": "Gebalanceerd",
     "quality": "Kwaliteit",
-    "hint": "Geldt voor OmniVoice-sampling en Faster-Whisper / NLLB-decodering. Andere engines behouden hun instellingen."
+    "hint": "Geldt voor OmniVoice-sampling en Faster-Whisper / NLLB-decodering. Andere engines behouden hun instellingen.",
+    "auto": "Auto"
   },
   "recording": {
     "input_device": "Invoerapparaat",
@@ -3197,5 +3198,41 @@
     "addingVoice": "Stem toevoegen…",
     "engineDefault": "Standaard motor",
     "preview": "Voorbeeldstem"
+  },
+  "sidebarTools": {
+    "simple": "Eenvoudig",
+    "details": "Details",
+    "title": "Gereedschapsinstellingen",
+    "help": "Kies een hulpmiddel om het in te stellen of het model te wijzigen.",
+    "tts": "Tekst naar spraak",
+    "asr": "Spraak naar tekst",
+    "llm": "Schrijfhulp",
+    "translation": "Vertaling",
+    "dictation": "Typen met je stem",
+    "diarisation": "Sprekers herkennen",
+    "onDemand": "Laadt bij gebruik",
+    "checkSetup": "Instellingen nakijken",
+    "wait": "Wacht tot het huidige werk klaar is voordat je dit wijzigt.",
+    "speedHelp": "Hogere kwaliteit kan langer duren. Begin met Gebalanceerd."
+  },
+  "performanceHardware": {
+    "fits": "Past bij je hardware",
+    "adjusted": "Aangepast aan je hardware",
+    "unknown": "Hardwarecontrole niet beschikbaar",
+    "priority": "Spraakkwaliteit eerst. Andere hulpmiddelen delen het resterende geheugen.",
+    "specs": "{{ram}} GB RAM · {{cores}} CPU-threads",
+    "vram": "{{memory}} GB VRAM",
+    "estimate": "Schatting met ruimte voor het systeem. Gebruikt geïnstalleerde modellen die de taal ondersteunen; laadt bij gebruik.",
+    "reason": {
+      "fits": "Past",
+      "memory": "Geheugenlimiet",
+      "installed": "Alleen geïnstalleerde modellen",
+      "kept": "Je keuze behouden",
+      "unknown": "Hardwarecontrole niet beschikbaar"
+    },
+    "liveUsage": "Actueel gebruik",
+    "everyTwoSeconds": "Elke 2 s",
+    "appVram": "App-VRAM",
+    "voiceFirst": "Spraakkwaliteit eerst"
   }
 }

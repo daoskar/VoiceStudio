@@ -4,8 +4,9 @@ from __future__ import annotations
 import math
 import os
 
+from services.performance_budget import TIERS as _PERFORMANCE_TIERS
+
 _PERFORMANCE_PROFILE_KEY = "performance_profile"
-_PERFORMANCE_TIERS = ("fast", "balanced", "quality", "max")
 _PERFORMANCE_FAMILIES = (
     "tts",
     "asr",
@@ -21,7 +22,7 @@ _PERFORMANCE_TARGETS = {
         "fast": {"steps": 8, "postprocess": False},
         "balanced": {"steps": 16, "postprocess": True},
         "quality": {"steps": 32, "postprocess": True},
-        "max": {"steps": 64, "postprocess": True, "model_policy": "largest-installed-compatible"},
+        "max": {"steps": 64, "postprocess": True, "model_policy": "tts-first-installed"},
     },
     "asr": {
         tier: {"beam_size": width, "best_of": width, "engine": "faster-whisper"}
@@ -137,9 +138,8 @@ def _installed_dictation_models() -> list:
     compatible = [
         spec for spec in installed if _dictation_supports_locale(spec, language)
     ]
-    # A machine without a usable locale should still recover to an explicitly
-    # installed model instead of claiming no speech model exists.
-    return compatible or installed
+    # Never "upgrade" a model to one that cannot understand the user's language.
+    return compatible
 
 
 def _activate_asr_model(tier: str) -> dict | None:
@@ -246,7 +246,7 @@ def _activate_installed_models(tier: str, family: str | None) -> dict[str, dict]
 
 
 
-def profile_state() -> dict:
+def profile_state(choice: str | None = None) -> dict:
     from core import prefs
     from services import asr_backend, diarization_runtime
     from services.sherpa_dictation import get_spec as dictation_spec
@@ -277,16 +277,13 @@ def profile_state() -> dict:
 
     stored = prefs.get(_PERFORMANCE_PROFILE_KEY, {})
     raw = stored if isinstance(stored, dict) else {}
-    global_tier = str(raw.get("global", "balanced")).lower()
-    if global_tier not in _PERFORMANCE_TIERS:
+    global_tier = str(choice or raw.get("global", "balanced")).lower()
+    if global_tier not in (*_PERFORMANCE_TIERS, "auto"):
         global_tier = "balanced"
     overrides = {
         str(family): str(tier)
         for family, tier in (raw.items() if isinstance(raw, dict) else [])
         if family in _PERFORMANCE_FAMILIES and tier in _PERFORMANCE_TIERS
-    }
-    effective = {
-        family: overrides.get(family, global_tier) for family in _PERFORMANCE_FAMILIES
     }
     applicable_families = [
         family
@@ -338,11 +335,19 @@ def profile_state() -> dict:
         },
         "llm": {"engine": "inactive", "model": None},
     }
+    from services.performance_inventory import profile_plan
+    plan = profile_plan(global_tier, overrides, selections)
+    effective = {family: overrides.get(family, plan["families"][family]["tier"])
+                 for family in _PERFORMANCE_FAMILIES}
+    for family, entry in plan["families"].items():
+        if family == "tts" and entry["selection"] and entry["reason"] != "kept" and family not in applicable_families:
+            applicable_families.append(family)
     return {
         "global": global_tier,
         "overrides": overrides,
         "effective": effective,
         "tiers": list(_PERFORMANCE_TIERS),
+        "global_choices": [*_PERFORMANCE_TIERS, "auto"],
         "families": list(_PERFORMANCE_FAMILIES),
         "implemented_families": list(_PERFORMANCE_TARGETS),
         "applicable_families": applicable_families,
@@ -351,6 +356,7 @@ def profile_state() -> dict:
             for family in _PERFORMANCE_TARGETS
         },
         "selections": selections,
+        "plan": plan,
         "downloads_started": False,
     }
 
@@ -363,6 +369,12 @@ def requested_tier(family: str) -> str | None:
     if not isinstance(stored, dict):
         return None
     tier = stored.get(family, stored.get("global"))
+    resolved = stored.get("resolved", {})
+    if isinstance(resolved, dict) and resolved.get(family) in _PERFORMANCE_TIERS:
+        return resolved[family]
+    if tier == "auto":
+        from services.performance_budget import hardware_snapshot, recommended_tier
+        return recommended_tier(hardware_snapshot())
     return tier if tier in _PERFORMANCE_TIERS else None
 
 
@@ -378,6 +390,8 @@ def activate_maximum_capacity_models(family: str | None = None) -> dict:
 
 def activate_performance_tier(tier: str, family: str | None = None) -> dict:
     """Apply installed-only model/runtime selections implied by a preset."""
+    if family is None:
+        return _activate_budgeted_profile(tier)
     requested = set(_PERFORMANCE_FAMILIES if family is None else (family,))
     activated = _activate_installed_models(tier, family)
 
@@ -399,6 +413,45 @@ def activate_performance_tier(tier: str, family: str | None = None) -> dict:
     return activated
 
 
+def _activate_budgeted_profile(tier: str) -> dict:
+    """Apply one shared plan; never independently spend the full RAM six times."""
+    from core import prefs
+    from services import asr_backend, diarization_runtime, tts_backend
+
+    state = profile_state(tier)
+    activated = {}
+    for family, entry in state["plan"]["families"].items():
+        selected = entry["selection"]
+        if selected is None or entry["reason"] == "kept":
+            continue
+        engine, model = selected["engine"], selected["model"]
+        if family == "tts":
+            if tts_backend.active_backend_id() != engine:
+                # Normal next-use switching releases the outgoing engine.
+                prefs.set_("tts_backend", engine)
+        elif family == "asr":
+            if asr_backend.faster_whisper_model_id() != model:
+                asr_backend.select_faster_whisper_model(model)
+            prefs.set_("asr_backend", engine)
+        elif family == "dictation":
+            if prefs.get("dictation.model_id") != model:
+                prefs.set_("dictation.model_id", model)
+                asr_backend._capture_backend = None
+                asr_backend._capture_backend_key = None
+        elif family == "translation":
+            prefs.set_("translation_backend", engine)
+        elif family == "diarisation":
+            if diarization_runtime.selected_backend() != engine:
+                diarization_runtime.select_backend(engine)
+            if engine == diarization_runtime.SORTFORMER:
+                from services import model_manager
+                model_manager.unload_diarization_pipeline()
+        activated[family] = selected
+    # Audio hot paths read the applied result, without probing model inventory.
+    prefs.update_mapping(_PERFORMANCE_PROFILE_KEY, {"resolved": state["effective"]})
+    return activated
+
+
 def reconcile_active_profile() -> dict[str, dict]:
     """Reapply a persisted profile after installs or an app restart.
 
@@ -414,15 +467,9 @@ def reconcile_active_profile() -> dict[str, dict]:
     if not isinstance(stored, dict):
         return {}
     global_tier = str(stored.get("global", "balanced")).lower()
-    if global_tier not in _PERFORMANCE_TIERS:
+    if global_tier not in (*_PERFORMANCE_TIERS, "auto"):
         global_tier = "balanced"
-    activated: dict[str, dict] = {}
-    for family in _PERFORMANCE_TARGETS:
-        tier = str(stored.get(family, global_tier)).lower()
-        if tier not in _PERFORMANCE_TIERS:
-            tier = global_tier
-        activated.update(activate_performance_tier(tier, family))
-    return activated
+    return activate_performance_tier(global_tier)
 
 
 def tts_defaults(engine: str = "omnivoice") -> dict:

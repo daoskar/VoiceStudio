@@ -1,5 +1,11 @@
-import { useRef, useState, type ReactNode } from 'react';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  usePerformanceProfile,
+  type PerformanceProfileState,
+} from '@/hooks/use-performance-profile';
+import { presetEngineFeedback } from './preset-engine-feedback';
+import { engineDetailLevels, useEngineDetailLevel } from './use-engine-detail-level';
+import { EngineRow } from './engine-row';
 import { useTranslationEngines } from '@/features/settings/translation-settings';
 import { Link } from '@tanstack/react-router';
 import {
@@ -9,18 +15,21 @@ import {
   BrainCircuitIcon,
   KeyboardIcon,
   UsersRoundIcon,
-  ArrowLeftRightIcon,
-  ChevronDownIcon,
+  SlidersHorizontalIcon,
+  ListIcon,
+  LayersIcon,
+  CodeXmlIcon,
   ChevronRightIcon,
   CpuIcon,
   MemoryStickIcon,
   MonitorUpIcon,
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useIsFetching, useQuery } from '@tanstack/react-query';
 import { apiJson } from '@/lib/api/client';
 import { useTranslation } from 'react-i18next';
 import { useBackendStatus } from '@/hooks/use-backend-status';
 import { engineFamilyState, useEngines } from '@/hooks/use-engines';
+import { useDeviceUsage } from '@/hooks/use-device-usage';
 import { useDictationSelection } from '@/hooks/use-dictation-selection';
 import { cn } from '@/lib/utils';
 import { useAppActivities } from '@/lib/app-activity';
@@ -30,7 +39,6 @@ import {
   type SidebarModelStatus,
 } from './status-runtime';
 import { PerformanceProfile } from '@/components/performance-profile';
-import { ComputeVendorIcon, formatComputeRuntime } from '@/components/compute-vendor-icon';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/popover';
 import { ComputeTargetChoices } from '@/components/compute-target-choices';
 import { useComputeRuntime, useComputeTarget } from '@/hooks/use-compute-target';
@@ -59,21 +67,6 @@ interface LoadedModelStatus {
   is_active_engine?: boolean | null;
 }
 
-interface DeviceUsage {
-  cpu: number;
-  cpu_model: string;
-  cpu_physical_cores: number;
-  cpu_logical_cores: number;
-  cpu_frequency_ghz: number;
-  ram: number;
-  total_ram: number;
-  gpu_name: string;
-  gpu_utilization: number | null;
-  vram: number;
-  total_vram: number;
-  gpu_active: boolean;
-}
-
 function boundedPercent(value: number, total = 100) {
   if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0) return 0;
   return Math.max(0, Math.min(100, (value / total) * 100));
@@ -82,7 +75,9 @@ function boundedPercent(value: number, total = 100) {
 function formatBytes(bytes: number) {
   const gib = Math.max(0, bytes) / 1024 ** 3;
   return new Intl.NumberFormat(undefined, {
-    style: 'unit', unit: 'gigabyte', maximumFractionDigits: gib >= 10 ? 0 : 1,
+    style: 'unit',
+    unit: 'gigabyte',
+    maximumFractionDigits: gib >= 10 ? 0 : 1,
   }).format(gib);
 }
 
@@ -143,21 +138,6 @@ const engineLinkClass =
 const engineIconClass =
   'size-4 transition-filter duration-150 group-hover/engine-icon:drop-shadow-[0_1px_3px_rgb(0_0_0/20%)]';
 
-function EngineIconStatus({ Icon, state }: { Icon: typeof AudioLinesIcon; state: string }) {
-  return (
-    <>
-      <Icon className={engineIconClass} aria-hidden="true" />
-      <span
-        className={cn(
-          'absolute inset-x-2 bottom-0.5 h-0.5 rounded-full transition-colors duration-200',
-          engineStateClass(state),
-        )}
-        aria-hidden="true"
-      />
-    </>
-  );
-}
-
 const DOT: Record<BackendStage, string> = {
   setup_required: 'bg-warning',
   installing: 'bg-warning animate-pulse motion-reduce:animate-none',
@@ -170,65 +150,6 @@ const DOT: Record<BackendStage, string> = {
   failed: 'bg-destructive',
 };
 
-function EngineTip({
-  family,
-  detail,
-  title,
-  runtime,
-  problem,
-  state,
-  online,
-}: {
-  family: string;
-  detail: string;
-  title?: string | null;
-  runtime?: string | null;
-  problem?: string | null;
-  state: string;
-  online: boolean;
-}) {
-  const { t } = useTranslation();
-  const shownState = online ? state : 'engineSidebar.offline';
-  return (
-    <div className="flex w-full min-w-0 max-w-[calc(100vw-2rem)] flex-col gap-2 py-1">
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-semibold">{t('engineSidebar.' + family)}</span>
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span
-            aria-hidden="true"
-            className={cn(
-              'size-1.5 shrink-0 rounded-full',
-              online ? engineStateClass(state) : 'bg-muted-foreground',
-            )}
-          />
-          {t(shownState)}
-        </span>
-      </div>
-      {title && title !== detail && <p className="text-sm font-medium leading-snug">{title}</p>}
-      <div className="space-y-1 border-t border-border/60 pt-2">
-        <p className="text-[10px] font-medium text-muted-foreground">
-          {t('modelSettings.selected')}
-        </p>
-        <p className="break-words text-xs leading-relaxed [overflow-wrap:anywhere]">{detail}</p>
-      </div>
-      {runtime && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <ComputeVendorIcon runtime={runtime} className="size-3.5 shrink-0" />
-          <span>{formatComputeRuntime(runtime)}</span>
-        </div>
-      )}
-      {problem && (
-        <p className="border-t border-border/60 pt-2 text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-          {problem}
-        </p>
-      )}
-      <p className="border-t border-border/60 pt-2 text-[10px] text-muted-foreground">
-        {t('modelSettings.change')}
-      </p>
-    </div>
-  );
-}
-
 export function StatusBar({
   compact = false,
   inline = false,
@@ -239,23 +160,22 @@ export function StatusBar({
   footerLeading?: ReactNode;
 }) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const { level, chooseLevel } = useEngineDetailLevel();
+  const [viewOpen, setViewOpen] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
+  const profile = usePerformanceProfile();
+  const [appliedProfile, setAppliedProfile] = useState<PerformanceProfileState | null>(null);
+  const enginesRefreshing = useIsFetching({ queryKey: ['engines'] }) > 0;
   const status = useBackendStatus();
   const computeTarget = useComputeTarget(status.stage === 'ready');
   const activeComputeTarget = computeTarget.data?.active;
   const activeRemoteTarget = activeComputeTarget?.remote
     ? computeTarget.data?.targets.find((item) => item.id === activeComputeTarget.worker_id)
     : undefined;
-  const tipAnchor = useRef<HTMLDivElement>(null);
+  const [selectedDetail, setSelectedDetail] = useState<string | null>('tts');
   const activities = useAppActivities();
   const activityCount = Object.values(activities).reduce((total, count) => total + count, 0);
-  const deviceUsage = useQuery({
-    queryKey: ['sysinfo'],
-    enabled: status.stage === 'ready' && deviceOpen && !activeComputeTarget?.remote,
-    queryFn: ({ signal }) => apiJson<DeviceUsage>('/sysinfo', { signal }),
-    refetchInterval: deviceOpen ? 2_000 : false,
-  });
+  const deviceUsage = useDeviceUsage(deviceOpen && !activeComputeTarget?.remote);
   const { data, isLoading: enginesLoading, isError: enginesError } = useEngines();
   const selectedTtsFamily = engineFamilyState(data, 'tts');
   const selectedTts = selectedTtsFamily?.backends.find(
@@ -516,32 +436,36 @@ export function StatusBar({
           )}
           {activeRemoteTarget.gpu_name &&
             (activeRemoteTarget.gpu_utilization_percent != null ||
-              (activeRemoteTarget.free_memory_bytes != null && activeRemoteTarget.gpu_memory_bytes > 0)) && (
-            <DeviceMetric
-              Icon={MonitorUpIcon}
-              label={t('settings.device_family_gpu')}
-              value={
-                [
+              (activeRemoteTarget.free_memory_bytes != null &&
+                activeRemoteTarget.gpu_memory_bytes > 0)) && (
+              <DeviceMetric
+                Icon={MonitorUpIcon}
+                label={t('settings.device_family_gpu')}
+                value={[
                   activeRemoteTarget.gpu_utilization_percent != null
                     ? `${Math.round(activeRemoteTarget.gpu_utilization_percent)}%`
                     : null,
-                  activeRemoteTarget.free_memory_bytes != null && activeRemoteTarget.gpu_memory_bytes > 0
+                  activeRemoteTarget.free_memory_bytes != null &&
+                  activeRemoteTarget.gpu_memory_bytes > 0
                     ? `${formatBytes(
                         activeRemoteTarget.gpu_memory_bytes - activeRemoteTarget.free_memory_bytes,
                       )} / ${formatBytes(activeRemoteTarget.gpu_memory_bytes)}`
                     : null,
                 ]
                   .filter((value): value is string => value != null)
-                  .join(' · ')
-              }
-              percent={
-                activeRemoteTarget.free_memory_bytes != null && activeRemoteTarget.gpu_memory_bytes > 0
-                  ? boundedPercent(activeRemoteTarget.gpu_memory_bytes - activeRemoteTarget.free_memory_bytes, activeRemoteTarget.gpu_memory_bytes)
-                  : activeRemoteTarget.gpu_utilization_percent ?? 0
-              }
-              detail={activeRemoteTarget.gpu_name}
-            />
-          )}
+                  .join(' · ')}
+                percent={
+                  activeRemoteTarget.free_memory_bytes != null &&
+                  activeRemoteTarget.gpu_memory_bytes > 0
+                    ? boundedPercent(
+                        activeRemoteTarget.gpu_memory_bytes - activeRemoteTarget.free_memory_bytes,
+                        activeRemoteTarget.gpu_memory_bytes,
+                      )
+                    : (activeRemoteTarget.gpu_utilization_percent ?? 0)
+                }
+                detail={activeRemoteTarget.gpu_name}
+              />
+            )}
         </div>
       ) : deviceUsage.isError ? (
         <button
@@ -712,6 +636,87 @@ export function StatusBar({
                   : 'modelSettings.unavailable',
     },
   ];
+  const refreshing = {
+    tts: enginesRefreshing,
+    asr: enginesRefreshing,
+    llm: enginesRefreshing,
+    translation: translation.isFetching,
+    dictation: dictation.isFetching,
+    diarisation: diarisation.isFetching,
+  };
+  const presetRefreshing = Object.values(refreshing).some(Boolean);
+  const appliedRefreshStarted = useRef(false);
+  useEffect(() => {
+    if (!appliedProfile) return;
+    if (presetRefreshing) appliedRefreshStarted.current = true;
+    else if (appliedRefreshStarted.current) {
+      appliedRefreshStarted.current = false;
+      setAppliedProfile(null);
+    }
+  }, [presetRefreshing, appliedProfile]);
+  const applicable = profile.data?.applicable_families ?? profile.data?.implemented_families ?? [];
+  const displayEngines = engines.map((row) =>
+    activeComputeTarget?.remote && row.family === 'tts'
+      ? row
+      : presetEngineFeedback(
+          row,
+          appliedProfile,
+          refreshing[row.family as keyof typeof refreshing],
+          profile.isSaving,
+          applicable,
+        ),
+  );
+  const viewControl = (
+    <Popover open={viewOpen} onOpenChange={setViewOpen}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            data-slot="engine-view-toggle"
+            aria-label={
+              t('sidebarTools.title') +
+              ': ' +
+              t(level === 'models' ? 'modelSettings.models' : 'sidebarTools.' + level)
+            }
+            title={t('sidebarTools.title')}
+            className="grid size-8 shrink-0 place-items-center rounded-md outline-none hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        }
+      >
+        <SlidersHorizontalIcon className="size-3.5" aria-hidden="true" />
+      </PopoverTrigger>
+      <PopoverContent side="right" className="w-36 p-1">
+        <div role="group" aria-label={t('sidebarTools.title')}>
+          {engineDetailLevels.map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={level === value}
+              onClick={() => {
+                chooseLevel(value);
+                setViewOpen(false);
+              }}
+              className={cn(
+                'flex min-h-9 w-full items-center gap-2 rounded px-3 text-start text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                level === value
+                  ? 'bg-sidebar-accent font-medium text-foreground'
+                  : 'hover:bg-sidebar-accent/50',
+              )}
+            >
+              {value === 'simple' ? (
+                <ListIcon className="size-3.5" aria-hidden="true" />
+              ) : value === 'models' ? (
+                <LayersIcon className="size-3.5" aria-hidden="true" />
+              ) : (
+                <CodeXmlIcon className="size-3.5" aria-hidden="true" />
+              )}
+              {t(value === 'models' ? 'modelSettings.models' : 'sidebarTools.' + value)}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
   const iconDevicePopover = (
     <Popover open={deviceOpen} onOpenChange={setDeviceOpen}>
       <PopoverTrigger
@@ -751,7 +756,7 @@ export function StatusBar({
     );
   }
   return (
-    <footer className="@container/engines w-full min-w-0 max-w-full border-t border-border/50 px-3 py-1.5 text-[length:var(--text-caption)] text-muted-foreground">
+    <footer className="@container/engines max-h-[55dvh] w-full min-w-0 max-w-full overflow-y-auto overscroll-contain border-t border-border/50 px-3 py-1.5 text-[length:var(--text-caption)] text-muted-foreground">
       <div>
         {!footerLeading && (
           <div className="flex items-center gap-0.5">
@@ -776,126 +781,50 @@ export function StatusBar({
               </PopoverTrigger>
               {deviceContent}
             </Popover>
-            <button
-              type="button"
-              aria-label={expanded ? t('paneActions.collapse') : t('modelSettings.models')}
-              aria-expanded={expanded}
-              aria-controls="sidebar-engine-details"
-              onClick={() => setExpanded((value) => !value)}
-              className="flex size-7 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-sidebar-accent/65 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ChevronDownIcon
-                className={cn(
-                  'size-3.5 transition-transform duration-150 motion-reduce:transition-none',
-                  expanded && 'rotate-180',
-                )}
-                aria-hidden="true"
-              />
-            </button>
+            {viewControl}
           </div>
         )}
-        <div
-          ref={tipAnchor}
-          className="mt-0.5 grid w-full min-w-0 grid-cols-6 gap-1 rounded-lg border border-border/50 bg-sidebar-accent/25 p-1"
-        >
-          {engines.map(({ family, Icon, detail, title, problem, runtime, state }) => (
-            <Tooltip key={family}>
-              <TooltipTrigger
-                render={
-                  <Link
-                    to="/settings/models/$family"
-                    params={{ family }}
-                    aria-label={t('modelSettings.change') + ' ' + t('engineSidebar.' + family)}
-                    className={engineLinkClass}
-                  />
-                }
-              >
-                <EngineIconStatus Icon={Icon} state={state} />
-              </TooltipTrigger>
-              <TooltipContent
-                surface="theme"
-                anchor={tipAnchor}
-                showArrow={false}
-                side="top"
-                align="start"
-                sideOffset={8}
-                className="w-[var(--anchor-width)] max-w-none flex-col items-start gap-1"
-              >
-                <EngineTip
-                  family={family}
-                  detail={detail}
-                  title={title}
-                  runtime={runtime}
-                  problem={problem}
-                  state={state}
-                  online={status.stage === 'ready'}
-                />
-              </TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
+        {status.stage === 'ready' && (
+          <PerformanceProfile
+            onApplied={(applied) => {
+              appliedRefreshStarted.current = presetRefreshing;
+              setAppliedProfile(applied);
+              if (level === 'simple') chooseLevel('models');
+            }}
+          />
+        )}
         <div
           id="sidebar-engine-details"
-          hidden={status.stage !== 'ready' || !expanded}
-          className="mt-1.5 space-y-0.5"
+          data-detail-level={level}
+          className={cn(
+            'min-w-0',
+            level === 'simple'
+              ? 'rounded-lg bg-sidebar-accent/20'
+              : 'max-h-[32dvh] space-y-0.5 overflow-y-auto overscroll-contain',
+          )}
         >
-          {status.stage === 'ready' &&
-            engines.map(({ family, Icon, detail, title, problem, runtime, state }) => (
-              <Link
-                key={family}
-                to="/settings/models/$family"
-                params={{ family }}
-                aria-label={t('modelSettings.change') + ' ' + t('engineSidebar.' + family)}
-                title={[title, detail, runtime, problem, t(state)].filter(Boolean).join(' \u00b7 ')}
-                className="group/engine flex min-w-0 items-center gap-2 rounded-md px-2 py-1 outline-none transition-[background-color,box-shadow,backdrop-filter] duration-150 hover:bg-sidebar-accent/65 hover:backdrop-blur-xl hover:shadow-[inset_0_1px_0_rgb(255_255_255/8%),0_5px_14px_rgb(0_0_0/10%)] hover:ring-1 hover:ring-inset hover:ring-sidebar-border/60 focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Icon
-                  className="size-3.5 shrink-0 transition-filter duration-150 group-hover/engine:drop-shadow-[0_1px_3px_rgb(0_0_0/20%)]"
-                  aria-hidden="true"
-                />
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <p className="min-w-0 basis-[45%] shrink-0 truncate font-medium text-foreground/85">
-                    {t('engineSidebar.' + family)}
-                  </p>
-                  <p className="min-w-0 flex-1 truncate">{detail}</p>
-                </div>
-                <span
-                  className={cn('size-1.5 shrink-0 rounded-full', engineStateClass(state))}
-                  title={t(state)}
-                  aria-hidden="true"
-                />
-                <ArrowLeftRightIcon
-                  className="size-3.5 shrink-0 opacity-50 transition-opacity duration-150 group-hover/engine:opacity-100"
-                  aria-hidden="true"
-                />
-              </Link>
+          {displayEngines
+            .filter(({ family }) => level !== 'simple' || family === 'tts')
+            .map((row) => (
+              <EngineRow
+                key={row.family}
+                row={row}
+                level={level}
+                online={status.stage === 'ready'}
+                dotClass={engineStateClass(row.state)}
+                open={selectedDetail === row.family}
+                onToggle={() =>
+                  setSelectedDetail((current) => (current === row.family ? null : row.family))
+                }
+              />
             ))}
         </div>
-        {status.stage === 'ready' && (
-          <div className="mt-1.5">
-            <PerformanceProfile tooltipAnchor={tipAnchor} />
-          </div>
-        )}
+
         {footerLeading && (
-          <div className="mt-1.5 flex items-center gap-1 border-t border-border/50 pt-1.5">
+          <div className="sticky bottom-0 mt-1.5 flex items-center gap-1 border-t border-border/50 bg-sidebar pt-1.5">
             {footerLeading}
             <div className="min-w-0 flex-1">{iconDevicePopover}</div>
-            <button
-              type="button"
-              aria-label={expanded ? t('paneActions.collapse') : t('modelSettings.models')}
-              aria-expanded={expanded}
-              aria-controls="sidebar-engine-details"
-              onClick={() => setExpanded((value) => !value)}
-              className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-sidebar-accent/65 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ChevronDownIcon
-                className={cn(
-                  'size-3.5 transition-transform duration-150 motion-reduce:transition-none',
-                  expanded && 'rotate-180',
-                )}
-                aria-hidden="true"
-              />
-            </button>
+            {viewControl}
           </div>
         )}
       </div>

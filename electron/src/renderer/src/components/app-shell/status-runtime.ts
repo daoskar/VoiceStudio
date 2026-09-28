@@ -12,6 +12,13 @@ export interface SidebarModelStatus {
 
 export type RuntimeHealth = 'checking' | 'unavailable' | 'loading' | 'ready';
 
+export function sidebarToolState(state: string, online: boolean) {
+  if (!online) return 'modelMaintenance.offline';
+  if (state === 'engineRuntime.idle') return 'modelSettings.available';
+  if (state === 'modelSettings.unavailable') return 'sidebarTools.checkSetup';
+  return state;
+}
+
 export type RemoteRuntimeState = 'checking' | 'unavailable' | 'working' | 'ready' | 'idle';
 
 export function resolveRemoteRuntime(

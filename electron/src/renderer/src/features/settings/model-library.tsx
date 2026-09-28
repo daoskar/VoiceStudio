@@ -115,7 +115,10 @@ export function PerformanceModelPacks({ compact = false }: { compact?: boolean }
     staleTime: 30_000,
   });
   const [starting, setStarting] = useState(false);
-  const tier = profile.data?.global ?? 'balanced';
+  const tier =
+    (profile.data?.global === 'auto'
+      ? (profile.data.plan?.resolved ?? 'balanced')
+      : profile.data?.global) ?? 'balanced';
   const pack = resolvePerformanceModelPack(catalogue.data?.models ?? [], tier);
   const installTarget = catalogue.data?.target ?? 'local';
   const packRepos = new Set(pack.models.map((model) => model.repo_id));
@@ -147,7 +150,7 @@ export function PerformanceModelPacks({ compact = false }: { compact?: boolean }
       // Persist the requested policy before starting downloads. The backend
       // reconciles this profile after each successful model install, making
       // the pack active without another selection or an app restart.
-      await profile.setTier({ tier, family: null });
+      await profile.setTier({ tier: profile.data.global === 'auto' ? 'auto' : tier, family: null });
       if (pack.missing.length === 0) {
         toast.success(t('models.pack_ready', { tier: t('performanceProfile.' + tier) }));
         return;

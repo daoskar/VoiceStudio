@@ -5,9 +5,10 @@ import { IDLE_STATUS_POLL_MS } from '@/lib/status-polling';
 
 export const performanceTiers = ['fast', 'balanced', 'quality', 'max'] as const;
 export type PerformanceTier = (typeof performanceTiers)[number];
+export type PerformanceChoice = PerformanceTier | 'auto';
 export type PerformanceFamily = 'tts' | 'asr' | 'dictation' | 'diarisation' | 'translation' | 'llm';
 export interface PerformanceProfileState {
-  global: PerformanceTier;
+  global: PerformanceChoice;
   overrides: Partial<Record<PerformanceFamily, PerformanceTier>>;
   effective: Record<PerformanceFamily, PerformanceTier>;
   families: PerformanceFamily[];
@@ -40,6 +41,25 @@ export interface PerformanceProfileState {
   >;
   capacity_activations?: Partial<Record<PerformanceFamily, { engine?: string; model?: string }>>;
   runtime_activations?: Partial<Record<PerformanceFamily, { engine?: string; model?: string }>>;
+  plan?: {
+    resolved: PerformanceTier;
+    status: 'fits' | 'adjusted' | 'unknown' | 'limited';
+    max_status: 'fits' | 'adjusted' | 'unknown' | 'limited';
+    hardware: {
+      device: string;
+      ram_gb: number | null;
+      vram_gb: number | null;
+      cpu_threads: number;
+    };
+    families: Record<
+      PerformanceFamily,
+      {
+        tier: PerformanceTier;
+        reason: 'fits' | 'memory' | 'installed' | 'kept' | 'unknown';
+        selection: { engine: string; model: string; label?: string | null } | null;
+      }
+    >;
+  };
 }
 
 /** Preference persistence only; runtime application must report its own result. */
@@ -61,7 +81,7 @@ export function usePerformanceProfile() {
       tier,
       family,
     }: {
-      tier: PerformanceTier;
+      tier: PerformanceChoice;
       family: PerformanceFamily | null;
     }) => {
       // Persist first. The old path waited for the relatively expensive engine
@@ -103,6 +123,7 @@ export function usePerformanceProfile() {
         client.invalidateQueries({ queryKey: ['translation-engines'] }),
         client.invalidateQueries({ queryKey: ['settings-dictation'] }),
         client.invalidateQueries({ queryKey: ['sidebar-dictation'] }),
+        client.invalidateQueries({ queryKey: ['diarisation-status'] }),
       ]);
     },
   });

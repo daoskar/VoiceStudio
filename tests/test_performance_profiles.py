@@ -190,7 +190,7 @@ def test_preset_uses_the_remaining_ready_local_translator(monkeypatch):
     assert writes == [("translation_backend", "argos")]
 
 
-def test_persisted_profile_is_reconciled_for_every_implemented_family(monkeypatch):
+def test_persisted_profile_is_reconciled_as_one_shared_budget(monkeypatch):
     from core import prefs
 
     calls = []
@@ -211,13 +211,7 @@ def test_persisted_profile_is_reconciled_for_every_implemented_family(monkeypatc
     )
 
     assert profiles.reconcile_active_profile() == {}
-    assert calls == [
-        ("balanced", "tts"),
-        ("quality", "asr"),
-        ("balanced", "dictation"),
-        ("balanced", "diarisation"),
-        ("balanced", "translation"),
-    ]
+    assert calls == [("balanced", None)]
 
 
 def test_initial_visible_balanced_profile_is_reconciled(monkeypatch):
@@ -232,4 +226,4 @@ def test_initial_visible_balanced_profile_is_reconciled(monkeypatch):
     )
 
     assert profiles.reconcile_active_profile() == {}
-    assert calls == [("balanced", family) for family in profiles._PERFORMANCE_TARGETS]
+    assert calls == [("balanced", None)]

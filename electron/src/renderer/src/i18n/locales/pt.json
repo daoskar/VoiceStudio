@@ -2681,7 +2681,8 @@
     "fast": "Rápido",
     "balanced": "Equilibrado",
     "quality": "Qualidade",
-    "hint": "Aplica-se à amostragem OmniVoice e à decodificação Faster-Whisper/NLLB. Outros motores mantêm as configurações atuais."
+    "hint": "Aplica-se à amostragem OmniVoice e à decodificação Faster-Whisper/NLLB. Outros motores mantêm as configurações atuais.",
+    "auto": "Auto"
   },
   "recording": {
     "input_device": "Dispositivo de entrada",
@@ -3199,5 +3200,41 @@
     "addingVoice": "Adicionando voz…",
     "engineDefault": "Padrão do mecanismo",
     "preview": "Visualizar voz"
+  },
+  "sidebarTools": {
+    "simple": "Simples",
+    "details": "Detalhes",
+    "title": "Configurações das ferramentas",
+    "help": "Escolha uma ferramenta para configurá-la ou trocar seu modelo.",
+    "tts": "Texto para fala",
+    "asr": "Fala para texto",
+    "llm": "Ajuda na escrita",
+    "translation": "Tradução",
+    "dictation": "Digitação por voz",
+    "diarisation": "Identificar falantes",
+    "onDemand": "Carrega ao usar",
+    "checkSetup": "Verificar configuração",
+    "wait": "Aguarde o trabalho atual terminar antes de alterar esta opção.",
+    "speedHelp": "Uma qualidade maior pode levar mais tempo. Comece com Equilibrado."
+  },
+  "performanceHardware": {
+    "fits": "Compatível com seu hardware",
+    "adjusted": "Ajustado ao seu hardware",
+    "unknown": "Verificação de hardware indisponível",
+    "priority": "Qualidade de voz primeiro. As outras ferramentas compartilham a memória restante.",
+    "specs": "{{ram}} GB de RAM · {{cores}} threads de CPU",
+    "vram": "{{memory}} GB de VRAM",
+    "estimate": "Estimativa com reserva para o sistema. Usa modelos instalados compatíveis com o idioma; carrega ao usar.",
+    "reason": {
+      "fits": "Compatível",
+      "memory": "Limite de memória",
+      "installed": "Apenas modelos instalados",
+      "kept": "Sua escolha mantida",
+      "unknown": "Verificação de hardware indisponível"
+    },
+    "liveUsage": "Uso em tempo real",
+    "everyTwoSeconds": "A cada 2 s",
+    "appVram": "VRAM do app",
+    "voiceFirst": "Qualidade de voz em primeiro lugar"
   }
 }

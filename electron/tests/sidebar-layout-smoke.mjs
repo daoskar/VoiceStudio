@@ -14,15 +14,40 @@ try {
   await page.addInitScript(() => localStorage.setItem('voicestudio.setup.complete.v1', '1'));
   await page.goto(ui + '/#/clone');
   const sidebar = page.locator('aside').first();
+  const chooseView = async (name) => {
+    await sidebar.locator('[data-slot=engine-view-toggle]').click();
+    await page
+      .getByRole('group', { name: 'Tool settings', exact: true })
+      .getByRole('button', { name, exact: true })
+      .click();
+  };
   const navigation = sidebar.getByRole('navigation', { name: 'Workspaces', exact: true });
   await navigation.waitFor();
-  assert.equal(await sidebar.locator('footer a:visible').count(), 6);
-  await sidebar.getByRole('link', { name: 'Change engine TTS', exact: true }).hover();
-  const engineTooltip = page.locator('[data-slot=tooltip-content]');
-  await engineTooltip.waitFor();
-  assert.ok((await engineTooltip.innerText()).includes('TTS'));
+  assert.equal(await sidebar.locator('footer a:visible').count(), 1);
+  await chooseView('Models');
+  const speechTool = sidebar.getByRole('link', { name: /^Text to speech: .*Change engine$/ });
+  await speechTool.focus();
+  assert.ok(await speechTool.evaluate((el) => el === document.activeElement));
+  for (const label of [
+    'Text to speech',
+    'Speech to text',
+    'Writing help',
+    'Translation',
+    'Voice typing',
+    'Identify speakers',
+  ]) {
+    const tool = sidebar.getByRole('link', {
+      name: new RegExp('^' + label + ': .*Change engine$'),
+    });
+    assert.ok(await tool.isVisible());
+    assert.ok((await tool.innerText()).includes('\n'), 'Each tool shows a text status');
+    assert.ok((await tool.boundingBox()).height >= 44, 'Tool has a touch-friendly target');
+  }
+  await speechTool.hover();
+  assert.equal(await page.locator('[data-slot=tooltip-content][data-open]').count(), 0);
+  await speechTool.blur();
   await page.mouse.move(800, 100);
-  await engineTooltip.waitFor({ state: 'detached' });
+  await chooseView('Simple');
   for (const [width, height] of [
     [1280, 720],
     [960, 600],
@@ -39,17 +64,18 @@ try {
       );
     }
     await page.screenshot({ path: join(out, 'navigation-' + height + '.png') });
-    const summary = sidebar.locator('[aria-controls=sidebar-engine-details]');
-    await summary.click();
+    await chooseView('Models');
     await sidebar.locator('#sidebar-engine-details a').nth(5).waitFor();
     assert.equal(await sidebar.locator('#sidebar-engine-details a').count(), 6);
-    const modelDetails = sidebar.locator('#sidebar-engine-details a p:nth-of-type(2)');
+    const modelDetails = sidebar.locator('[data-slot=engine-selected-model]');
     assert.equal(await modelDetails.count(), 6);
     assert.ok(await modelDetails.first().isVisible());
     assert.ok(
       await sidebar
         .locator('#sidebar-engine-details')
-        .evaluate((el) => el.scrollHeight <= el.clientHeight),
+        .evaluate(
+          (el) => el.scrollHeight <= el.clientHeight || getComputedStyle(el).overflowY === 'auto',
+        ),
     );
     const footer = await sidebar.getByRole('link', { name: 'Settings', exact: true }).boundingBox();
     assert.ok(
@@ -58,9 +84,10 @@ try {
     );
     assert.ok(!(await sidebar.innerText()).includes('\u00c2'));
     await page.screenshot({ path: join(out, 'engines-' + height + '.png') });
-    await summary.click();
+    await chooseView('Simple');
     await page.screenshot({ path: join(out, 'compact-' + height + '.png') });
   }
+  await navigation.getByRole('button', { name: 'Stories', exact: true }).click();
   await navigation.getByRole('link', { name: 'Stories', exact: true }).click();
   await page.waitForURL('**/#/stories');
   for (const width of [1920, 960]) {
@@ -70,8 +97,7 @@ try {
     await compactMain.waitFor();
     assert.equal(Math.round((await compactMain.boundingBox()).width), 48);
     const openMain = compactMain.getByRole('button', { name: 'Toggle Sidebar' });
-    assert.equal(await openMain.locator('.lucide-panel-left-open').count(), 1);
-    assert.equal(await openMain.locator('img').count(), 0);
+    assert.equal(await openMain.locator('img').count(), 1);
     assert.equal(await page.getByRole('heading', { name: 'Saved voices', exact: true }).count(), 1);
     if (width === 1920) {
       await openMain.click();

@@ -2683,7 +2683,8 @@
     "fast": "Szybko",
     "balanced": "Zrównoważony",
     "quality": "Jakość",
-    "hint": "Dotyczy próbkowania OmniVoice i dekodowania Faster-Whisper / NLLB. Inne silniki zachowują swoje aktualne ustawienia."
+    "hint": "Dotyczy próbkowania OmniVoice i dekodowania Faster-Whisper / NLLB. Inne silniki zachowują swoje aktualne ustawienia.",
+    "auto": "Auto"
   },
   "recording": {
     "input_device": "Urządzenie wejściowe",
@@ -3201,5 +3202,41 @@
     "addingVoice": "Dodawanie głosu…",
     "engineDefault": "Domyślne ustawienie silnika",
     "preview": "Podgląd głosu"
+  },
+  "sidebarTools": {
+    "simple": "Prosty",
+    "details": "Szczegóły",
+    "title": "Ustawienia narzędzi",
+    "help": "Wybierz narzędzie, aby je skonfigurować lub zmienić jego model.",
+    "tts": "Tekst na mowę",
+    "asr": "Mowa na tekst",
+    "llm": "Pomoc w pisaniu",
+    "translation": "Tłumaczenie",
+    "dictation": "Pisanie głosem",
+    "diarisation": "Rozpoznawanie mówców",
+    "onDemand": "Ładuje przy użyciu",
+    "checkSetup": "Sprawdź konfigurację",
+    "wait": "Poczekaj na zakończenie bieżącego zadania, zanim to zmienisz.",
+    "speedHelp": "Wyższa jakość może wymagać więcej czasu. Zacznij od trybu Zrównoważony."
+  },
+  "performanceHardware": {
+    "fits": "Pasuje do sprzętu",
+    "adjusted": "Dostosowano do sprzętu",
+    "unknown": "Sprawdzanie sprzętu niedostępne",
+    "priority": "Jakość głosu ma priorytet. Pozostałe narzędzia dzielą pozostałą pamięć.",
+    "specs": "{{ram}} GB RAM · {{cores}} wątków CPU",
+    "vram": "{{memory}} GB VRAM",
+    "estimate": "Szacunek z rezerwą dla systemu. Używa zainstalowanych modeli obsługujących język; ładuje je w razie potrzeby.",
+    "reason": {
+      "fits": "Pasuje",
+      "memory": "Limit pamięci",
+      "installed": "Tylko zainstalowane modele",
+      "kept": "Zachowano Twój wybór",
+      "unknown": "Sprawdzanie sprzętu niedostępne"
+    },
+    "liveUsage": "Bieżące użycie",
+    "everyTwoSeconds": "Co 2 s",
+    "appVram": "VRAM aplikacji",
+    "voiceFirst": "Jakość głosu na pierwszym miejscu"
   }
 }

@@ -2679,7 +2679,8 @@
     "fast": "高速",
     "balanced": "バランス",
     "quality": "品質",
-    "hint": "OmniVoice のサンプリングと Faster-Whisper / NLLB のデコードに適用されます。他のエンジンは現在の設定を維持します。"
+    "hint": "OmniVoice のサンプリングと Faster-Whisper / NLLB のデコードに適用されます。他のエンジンは現在の設定を維持します。",
+    "auto": "自動"
   },
   "recording": {
     "input_device": "入力デバイス",
@@ -3197,5 +3198,41 @@
     "addingVoice": "音声を追加中…",
     "engineDefault": "エンジンのデフォルト",
     "preview": "プレビュー音声"
+  },
+  "sidebarTools": {
+    "simple": "シンプル",
+    "details": "詳細",
+    "title": "ツール設定",
+    "help": "ツールを選んで設定やモデルの変更を行います。",
+    "tts": "テキスト読み上げ",
+    "asr": "音声の文字起こし",
+    "llm": "文章作成の補助",
+    "translation": "翻訳",
+    "dictation": "音声入力",
+    "diarisation": "話者の識別",
+    "onDemand": "使用時に読み込み",
+    "checkSetup": "設定を確認",
+    "wait": "この設定を変更するには、現在の処理が完了するまでお待ちください。",
+    "speedHelp": "高品質にすると時間がかかる場合があります。まずは「バランス」をお試しください。"
+  },
+  "performanceHardware": {
+    "fits": "この機器に適合",
+    "adjusted": "機器に合わせて調整",
+    "unknown": "ハードウェアを確認できません",
+    "priority": "音声品質を優先。ほかのツールは残りのメモリを共有します。",
+    "specs": "RAM {{ram}} GB · CPU {{cores}} スレッド",
+    "vram": "VRAM {{memory}} GB",
+    "estimate": "システム用の余裕を含む推定です。言語に対応するインストール済みモデルを使用時に読み込みます。",
+    "reason": {
+      "fits": "適合",
+      "memory": "メモリ制限",
+      "installed": "インストール済みのみ",
+      "kept": "選択を維持",
+      "unknown": "ハードウェアを確認できません"
+    },
+    "liveUsage": "現在の使用状況",
+    "everyTwoSeconds": "2秒ごと",
+    "appVram": "アプリのVRAM",
+    "voiceFirst": "音声品質を優先"
   }
 }
