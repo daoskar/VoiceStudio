@@ -110,7 +110,7 @@ export function WorkspaceSidebar() {
           ref={sidebarResize.host}
           style={{ width: sidebarResize.width }}
           aria-label={t('clone.saved_profiles')}
-          className="brand-sidebar relative isolate grid h-full min-h-0 min-w-0 shrink-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden border-r border-border/50 bg-sidebar"
+          className="brand-sidebar relative isolate grid h-full min-h-0 min-w-0 shrink-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,auto)_minmax(7rem,1fr)_auto] overflow-hidden border-r border-border/50 bg-sidebar"
         >
           <img
             src={brandArtwork}
@@ -148,7 +148,7 @@ export function WorkspaceSidebar() {
           />
           {/* Navigation first, like the compact rail: it stays at a fixed
               position under the header instead of riding the library's height. */}
-          <div className="min-w-0 shrink-0 border-b border-border/50">
+          <div className="min-h-0 min-w-0 overflow-y-auto border-b border-border/50">
             <WorkspaceNavigation />
           </div>
           <VoicesSidebar key={libraryTab} initialTab={libraryTab} />

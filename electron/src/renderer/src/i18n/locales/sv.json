@@ -2679,7 +2679,8 @@
     "fast": "Snabb",
     "balanced": "Balanserad",
     "quality": "Kvalitet",
-    "hint": "Gäller OmniVoice sampling och Faster-Whisper / NLLB avkodning. Andra motorer behåller sina nuvarande inställningar."
+    "hint": "Gäller OmniVoice sampling och Faster-Whisper / NLLB avkodning. Andra motorer behåller sina nuvarande inställningar.",
+    "auto": "Auto"
   },
   "recording": {
     "input_device": "Inmatningsenhet",
@@ -3197,5 +3198,41 @@
     "addingVoice": "Lägger till röst…",
     "engineDefault": "Standard för motor",
     "preview": "Förhandsgranska röst"
+  },
+  "sidebarTools": {
+    "simple": "Enkel",
+    "details": "Detaljer",
+    "title": "Verktygsinställningar",
+    "help": "Välj ett verktyg för att ställa in det eller byta modell.",
+    "tts": "Text till tal",
+    "asr": "Tal till text",
+    "llm": "Skrivhjälp",
+    "translation": "Översättning",
+    "dictation": "Röstinmatning",
+    "diarisation": "Identifiera talare",
+    "onDemand": "Laddas vid användning",
+    "checkSetup": "Kontrollera inställningar",
+    "wait": "Vänta tills det pågående arbetet är klart innan du ändrar detta.",
+    "speedHelp": "Högre kvalitet kan ta längre tid. Börja med Balanserad."
+  },
+  "performanceHardware": {
+    "fits": "Passar din maskinvara",
+    "adjusted": "Anpassat till din maskinvara",
+    "unknown": "Maskinvarukontroll saknas",
+    "priority": "Röstkvalitet först. Övriga verktyg delar på det återstående minnet.",
+    "specs": "{{ram}} GB RAM · {{cores}} CPU-trådar",
+    "vram": "{{memory}} GB VRAM",
+    "estimate": "Uppskattning med utrymme för systemet. Använder installerade modeller som stöder språket; laddas vid användning.",
+    "reason": {
+      "fits": "Passar",
+      "memory": "Minnesgräns",
+      "installed": "Endast installerade modeller",
+      "kept": "Ditt val behålls",
+      "unknown": "Maskinvarukontroll saknas"
+    },
+    "liveUsage": "Aktuell användning",
+    "everyTwoSeconds": "Varannan sekund",
+    "appVram": "Appens VRAM",
+    "voiceFirst": "Röstkvalitet först"
   }
 }

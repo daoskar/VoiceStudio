@@ -3431,5 +3431,44 @@
     "step_transcribe": "转录",
     "step_translate": "翻译",
     "step_convert": "转换"
+  },
+  "sidebarTools": {
+    "simple": "简洁",
+    "details": "详情",
+    "title": "工具设置",
+    "help": "选择工具以进行设置或更换模型。",
+    "tts": "文字转语音",
+    "asr": "语音转文字",
+    "llm": "写作辅助",
+    "translation": "翻译",
+    "dictation": "语音输入",
+    "diarisation": "识别说话人",
+    "onDemand": "使用时加载",
+    "checkSetup": "检查设置",
+    "wait": "请等待当前任务完成后再更改此设置。",
+    "speedHelp": "更高的质量可能需要更长时间。建议从“均衡”开始。"
+  },
+  "performanceHardware": {
+    "fits": "适合当前硬件",
+    "adjusted": "已按硬件调整",
+    "unknown": "无法检测硬件",
+    "priority": "优先保障语音质量，其他工具共享剩余内存。",
+    "specs": "{{ram}} GB 内存 · {{cores}} 个 CPU 线程",
+    "vram": "{{memory}} GB 显存",
+    "estimate": "此为预估，已为系统预留空间。仅使用已安装且支持当前语言的模型，使用时加载。",
+    "reason": {
+      "fits": "适合",
+      "memory": "内存限制",
+      "installed": "仅限已安装模型",
+      "kept": "保留你的选择",
+      "unknown": "无法检测硬件"
+    },
+    "liveUsage": "实时用量",
+    "everyTwoSeconds": "每 2 秒更新",
+    "appVram": "应用显存",
+    "voiceFirst": "优先保证语音质量"
+  },
+  "performanceProfile": {
+    "auto": "自动"
   }
 }

@@ -2953,5 +2953,44 @@
     "step_transcribe": "轉錄",
     "step_translate": "翻譯",
     "step_convert": "轉換"
+  },
+  "sidebarTools": {
+    "simple": "簡潔",
+    "details": "詳細",
+    "title": "工具設定",
+    "help": "選擇工具以進行設定或更換模型。",
+    "tts": "文字轉語音",
+    "asr": "語音轉文字",
+    "llm": "寫作輔助",
+    "translation": "翻譯",
+    "dictation": "語音輸入",
+    "diarisation": "辨識說話者",
+    "onDemand": "使用時載入",
+    "checkSetup": "檢查設定",
+    "wait": "請等待目前的工作完成後再變更此設定。",
+    "speedHelp": "更高的品質可能需要更長時間。建議從「平衡」開始。"
+  },
+  "performanceHardware": {
+    "fits": "適合目前硬體",
+    "adjusted": "已依硬體調整",
+    "unknown": "無法偵測硬體",
+    "priority": "優先保障語音品質，其他工具共用剩餘記憶體。",
+    "specs": "{{ram}} GB 記憶體 · {{cores}} 個 CPU 執行緒",
+    "vram": "{{memory}} GB 顯示記憶體",
+    "estimate": "此為預估，已為系統預留空間。僅使用已安裝且支援目前語言的模型，使用時載入。",
+    "reason": {
+      "fits": "適合",
+      "memory": "記憶體限制",
+      "installed": "僅限已安裝模型",
+      "kept": "保留你的選擇",
+      "unknown": "無法偵測硬體"
+    },
+    "liveUsage": "即時用量",
+    "everyTwoSeconds": "每 2 秒更新",
+    "appVram": "應用程式顯示記憶體",
+    "voiceFirst": "優先確保語音品質"
+  },
+  "performanceProfile": {
+    "auto": "自動"
   }
 }

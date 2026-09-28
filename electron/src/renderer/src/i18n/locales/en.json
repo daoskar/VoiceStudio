@@ -2717,7 +2717,8 @@
     "fast": "Fast",
     "balanced": "Balanced",
     "quality": "Quality",
-    "hint": "Applies to OmniVoice sampling and Faster-Whisper / NLLB decoding. Other engines keep their current settings."
+    "hint": "Applies to OmniVoice sampling and Faster-Whisper / NLLB decoding. Other engines keep their current settings.",
+    "auto": "Auto"
   },
   "network": {
     "copied": "Copied",
@@ -3197,5 +3198,41 @@
     "addingVoice": "Adding voice…",
     "engineDefault": "Engine default",
     "preview": "Preview voice"
+  },
+  "sidebarTools": {
+    "simple": "Simple",
+    "details": "Details",
+    "title": "Tool settings",
+    "help": "Choose a tool to set it up or change its model.",
+    "tts": "Text to speech",
+    "asr": "Speech to text",
+    "llm": "Writing help",
+    "translation": "Translation",
+    "dictation": "Voice typing",
+    "diarisation": "Identify speakers",
+    "onDemand": "Loads on use",
+    "checkSetup": "Check setup",
+    "wait": "Wait for current work to finish before changing this.",
+    "speedHelp": "Higher quality can take longer. Start with Balanced."
+  },
+  "performanceHardware": {
+    "fits": "Fits your hardware",
+    "adjusted": "Adapted to your hardware",
+    "unknown": "Hardware check unavailable",
+    "priority": "Voice quality first. Other tools share the remaining memory.",
+    "specs": "{{ram}} GB RAM · {{cores}} CPU threads",
+    "vram": "{{memory}} GB VRAM",
+    "estimate": "Estimated fit, with room for the system. Uses installed, language-compatible models; loads on use.",
+    "reason": {
+      "fits": "Fits",
+      "memory": "Memory limit",
+      "installed": "Installed models only",
+      "kept": "Kept your choice",
+      "unknown": "Hardware check unavailable"
+    },
+    "liveUsage": "Live usage",
+    "everyTwoSeconds": "Every 2 s",
+    "appVram": "App VRAM",
+    "voiceFirst": "Voice quality first"
   }
 }

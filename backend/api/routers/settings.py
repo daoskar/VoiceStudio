@@ -108,7 +108,7 @@ from services.performance_profiles import (
 
 
 class _PerformanceProfileBody(BaseModel):
-    tier: str = Field(..., description="fast | balanced | quality | max")
+    tier: str = Field(..., description="fast | balanced | quality | max | auto")
     family: str | None = Field(None, description="Engine family, or null to set the global tier")
 
 
@@ -122,18 +122,23 @@ def get_performance_profile():
 
 @router.put("/performance-profile")
 def set_performance_profile(body: _PerformanceProfileBody):
-    """Persist a performance preference and apply installed Max-capacity picks."""
+    """Persist a performance preference and apply installed compatible picks."""
     from core import prefs
 
     tier = body.tier.strip().lower()
-    if tier not in _PERFORMANCE_TIERS:
+    if tier not in (*_PERFORMANCE_TIERS, "auto"):
         raise HTTPException(status_code=400, detail="Unknown performance tier")
     family = body.family.strip().lower() if body.family else None
     if family is not None and family not in _PERFORMANCE_FAMILIES:
         raise HTTPException(status_code=400, detail="Unknown engine family")
+    if family is not None and tier == "auto":
+        raise HTTPException(status_code=400, detail="Auto manages the whole device; use the global control")
     state = _performance_profile_state()
     applicable = state["applicable_families"]
-    if (family is not None and family not in applicable) or (family is None and not applicable):
+    # A global pack policy must be saved before its first models are installed.
+    # Activation is installed-only; the installer reconciles the saved policy
+    # as models become available. Family controls still need a usable engine.
+    if family is not None and family not in applicable:
         raise HTTPException(status_code=409, detail="The selected engines do not support this performance preset")
     from core import job_store
     from api.routers.batch import list_batch_jobs
@@ -145,7 +150,10 @@ def set_performance_profile(body: _PerformanceProfileBody):
             # choice, so a crash cannot leave half of a global change persisted.
             prefs.update_mapping(_PERFORMANCE_PROFILE_KEY, {"global": tier}, replace=True)
         else:
-            prefs.update_mapping(_PERFORMANCE_PROFILE_KEY, {family: tier})
+            stored = prefs.get(_PERFORMANCE_PROFILE_KEY, {})
+            resolved = dict(stored.get("resolved", {})) if isinstance(stored, dict) else {}
+            resolved.pop(family, None)
+            prefs.update_mapping(_PERFORMANCE_PROFILE_KEY, {family: tier, "resolved": resolved})
     except Exception:
         logger.exception("set_performance_profile failed")
         raise HTTPException(status_code=500, detail="Failed to persist performance profile")

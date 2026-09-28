@@ -2953,5 +2953,44 @@
     "step_transcribe": "Transkribieren",
     "step_translate": "Übersetzen",
     "step_convert": "Konvertieren"
+  },
+  "sidebarTools": {
+    "simple": "Einfach",
+    "details": "Details",
+    "title": "Werkzeugeinstellungen",
+    "help": "Wähle ein Werkzeug, um es einzurichten oder sein Modell zu ändern.",
+    "tts": "Text vorlesen",
+    "asr": "Sprache in Text",
+    "llm": "Schreibhilfe",
+    "translation": "Übersetzung",
+    "dictation": "Spracheingabe",
+    "diarisation": "Sprecher erkennen",
+    "onDemand": "Lädt bei Nutzung",
+    "checkSetup": "Einrichtung prüfen",
+    "wait": "Warte, bis die laufende Arbeit abgeschlossen ist, bevor du dies änderst.",
+    "speedHelp": "Höhere Qualität kann länger dauern. Beginne mit Ausgewogen."
+  },
+  "performanceHardware": {
+    "fits": "Passt zur Hardware",
+    "adjusted": "An die Hardware angepasst",
+    "unknown": "Hardwareprüfung nicht verfügbar",
+    "priority": "Sprachqualität zuerst. Andere Werkzeuge teilen den übrigen Speicher.",
+    "specs": "{{ram}} GB RAM · {{cores}} CPU-Threads",
+    "vram": "{{memory}} GB VRAM",
+    "estimate": "Geschätzter Bedarf mit Systemreserve. Nutzt installierte, sprachkompatible Modelle und lädt sie bei Bedarf.",
+    "reason": {
+      "fits": "Passt",
+      "memory": "Speichergrenze",
+      "installed": "Nur installierte Modelle",
+      "kept": "Auswahl beibehalten",
+      "unknown": "Hardwareprüfung nicht verfügbar"
+    },
+    "liveUsage": "Aktuelle Auslastung",
+    "everyTwoSeconds": "Alle 2 s",
+    "appVram": "App-VRAM",
+    "voiceFirst": "Sprachqualität zuerst"
+  },
+  "performanceProfile": {
+    "auto": "Auto"
   }
 }

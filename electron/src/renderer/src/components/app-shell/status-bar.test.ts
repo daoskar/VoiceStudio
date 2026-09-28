@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import type { EnginesResponse } from '@/lib/api/types';
 import { engineFamilyState } from '@/hooks/use-engines';
-import { resolveRemoteRuntime, resolveRuntimeHealth } from './status-runtime';
+import { resolveRemoteRuntime, resolveRuntimeHealth, sidebarToolState } from './status-runtime';
+
+describe('plain-language tool status', () => {
+  it('never reports cached readiness when the backend is offline', () => {
+    for (const state of ['engineRuntime.ready', 'engineRuntime.idle', 'engineRuntime.working']) {
+      expect(sidebarToolState(state, false)).toBe('modelMaintenance.offline');
+    }
+  });
+
+  it('distinguishes loading on use from setup problems without relying on color', () => {
+    expect(sidebarToolState('engineRuntime.idle', true)).toBe('modelSettings.available');
+    expect(sidebarToolState('modelSettings.unavailable', true)).toBe('sidebarTools.checkSetup');
+    expect(sidebarToolState('engineRuntime.working', true)).toBe('engineRuntime.working');
+    expect(sidebarToolState('engineSidebar.inactive', true)).toBe('engineSidebar.inactive');
+  });
+});
 
 const engines = (available = true): EnginesResponse => ({
   tts: {
